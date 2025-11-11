@@ -75,8 +75,8 @@
 - [X] T015 [US1] 修改main.go使用internal.LoadConfig(ctx)替代原有配置加载逻辑（行148-164）
 - [X] T016 [US1] 删除main.go中的Config结构体定义、Process方法和retrieveACLRules函数
 - [X] T017 [US1] 验证构建：`go build ./...`
-- [ ] T018 [US1] 验证配置加载功能：设置环境变量并运行，检查日志输出
-- [ ] T019 [US1] Git提交：`git commit -m "重构: 提取config模块到internal/config.go"`
+- [X] T018 [US1] 验证配置加载功能：设置环境变量并运行，检查日志输出
+- [X] T019 [US1] Git提交：`git commit -m "重构: 提取config模块到internal/config.go"`
 
 **检查点**: 配置模块独立工作，main.go精简约60行
 

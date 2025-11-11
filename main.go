@@ -51,7 +51,6 @@ import (
 	"github.com/networkservicemesh/vpphelper"
 
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
-	registryapi "github.com/networkservicemesh/api/pkg/api/registry"
 
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/acl"
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/mechanisms/memif"
@@ -66,10 +65,6 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/networkservice/common/passthrough"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/core/chain"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/utils/metadata"
-	registryclient "github.com/networkservicemesh/sdk/pkg/registry/chains/client"
-	registryauthorize "github.com/networkservicemesh/sdk/pkg/registry/common/authorize"
-	"github.com/networkservicemesh/sdk/pkg/registry/common/clientinfo"
-	registrysendfd "github.com/networkservicemesh/sdk/pkg/registry/common/sendfd"
 	"github.com/networkservicemesh/sdk/pkg/tools/debug"
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
@@ -78,7 +73,7 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/spiffejwt"
 	"github.com/networkservicemesh/sdk/pkg/tools/tracing"
 
-	"github.com/networkservicemesh/cmd-template/internal"
+	"github.com/ifzzh/cmd-nse-template/internal"
 )
 
 func main() {
@@ -258,26 +253,8 @@ func main() {
 	log.FromContext(ctx).Infof("executing phase 6: register nse with nsm")
 	// ********************************************************************************
 
-	nseRegistryClient := registryclient.NewNetworkServiceEndpointRegistryClient(
-		ctx,
-		registryclient.WithClientURL(&config.ConnectTo),
-		registryclient.WithDialOptions(clientOptions...),
-		registryclient.WithNSEAdditionalFunctionality(
-			clientinfo.NewNetworkServiceEndpointRegistryClient(),
-			registrysendfd.NewNetworkServiceEndpointRegistryClient()),
-		registryclient.WithAuthorizeNSERegistryClient(registryauthorize.NewNetworkServiceEndpointRegistryClient(
-			registryauthorize.WithPolicies(config.RegistryClientPolicies...))),
-	)
-	nse, err := nseRegistryClient.Register(ctx, &registryapi.NetworkServiceEndpoint{
-		Name:                config.Name,
-		NetworkServiceNames: []string{config.ServiceName},
-		NetworkServiceLabels: map[string]*registryapi.NetworkServiceLabels{
-			config.ServiceName: {
-				Labels: config.Labels,
-			},
-		},
-		Url: listenOn.String(),
-	})
+	nseRegistryClient := internal.NewRegistryClient(ctx, &config.ConnectTo, clientOptions, config.RegistryClientPolicies)
+	nse, err := internal.RegisterEndpoint(ctx, nseRegistryClient, config.Name, config.ServiceName, config.Labels, listenOn.String())
 	logrus.Infof("nse: %+v", nse)
 
 	if err != nil {

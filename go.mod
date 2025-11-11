@@ -1,4 +1,4 @@
-module github.com/networkservicemesh/cmd-template
+module github.com/ifzzh/cmd-nse-template
 
 go 1.23.8
 

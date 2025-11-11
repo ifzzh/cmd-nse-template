@@ -244,7 +244,39 @@ cmd-nse-firewall-vpp/
 - 保持NSM协议兼容性
 - 维护独立的发布节奏
 
-**理由**: 项目需要根据特定需求进行定制化开发，完全依赖上游会限制灵活性，独立演化更符合长期战略。
+**模块路径策略**（强制遵守）:
+
+为便于区分代码所有权和维护范围，项目采用以下导入路径规范：
+
+1. **外部依赖保持不变**（来自上游 networkservicemesh）:
+   ```go
+   // ✅ 正确 - 保持原有路径
+   "github.com/networkservicemesh/sdk/pkg/..."
+   "github.com/networkservicemesh/sdk-vpp/pkg/..."
+   "github.com/networkservicemesh/api/pkg/..."
+   "github.com/networkservicemesh/vpphelper"
+   ```
+
+2. **本地自定义模块使用独立路径**（项目内部代码）:
+   ```go
+   // ✅ 正确 - 使用 ifzzh 路径
+   "github.com/ifzzh/cmd-nse-template/internal"
+
+   // ❌ 错误 - 不要使用上游路径
+   "github.com/networkservicemesh/cmd-template/internal"
+   ```
+
+3. **go.mod 模块声明**:
+   ```go
+   module github.com/ifzzh/cmd-nse-template
+   ```
+
+**理由**:
+- 项目需要根据特定需求进行定制化开发，完全依赖上游会限制灵活性，独立演化更符合长期战略
+- 清晰的路径区分有助于理解代码所有权：
+  - `github.com/networkservicemesh/...` = 外部依赖（上游维护）
+  - `github.com/ifzzh/...` = 本地代码（自行维护）
+- 避免与上游模块路径混淆，便于代码审查和依赖管理
 
 ---
 
