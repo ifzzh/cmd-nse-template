@@ -42,13 +42,18 @@ import (
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/edwarnicke/grpcfd"
+	"github.com/kelseyhightower/envconfig"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"gopkg.in/yaml.v2"
 
 	"github.com/networkservicemesh/vpphelper"
+
+	"github.com/networkservicemesh/govpp/binapi/acl_types"
 
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 	registryapi "github.com/networkservicemesh/api/pkg/api/registry"
@@ -77,9 +82,36 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/pprofutils"
 	"github.com/networkservicemesh/sdk/pkg/tools/spiffejwt"
 	"github.com/networkservicemesh/sdk/pkg/tools/tracing"
-
-	"github.com/networkservicemesh/cmd-template/internal"
 )
+
+// Config holds configuration parameters from environment variables
+type Config struct {
+	Name                   string              `default:"firewall-server" desc:"Name of Firewall Server"`
+	ListenOn               string              `default:"listen.on.sock" desc:"listen on socket" split_words:"true"`
+	ConnectTo              url.URL             `default:"unix:///var/lib/networkservicemesh/nsm.io.sock" desc:"url to connect to" split_words:"true"`
+	MaxTokenLifetime       time.Duration       `default:"10m" desc:"maximum lifetime of tokens" split_words:"true"`
+	RegistryClientPolicies []string            `default:"etc/nsm/opa/common/.*.rego,etc/nsm/opa/registry/.*.rego,etc/nsm/opa/client/.*.rego" desc:"paths to files and directories that contain registry client policies" split_words:"true"`
+	ServiceName            string              `default:"" desc:"Name of providing service" split_words:"true"`
+	Labels                 map[string]string   `default:"" desc:"Endpoint labels"`
+	ACLConfigPath          string              `default:"/etc/firewall/config.yaml" desc:"Path to ACL config file" split_words:"true"`
+	ACLConfig              []acl_types.ACLRule `default:"" desc:"configured acl rules" split_words:"true"`
+	LogLevel               string              `default:"INFO" desc:"Log level" split_words:"true"`
+	OpenTelemetryEndpoint  string              `default:"otel-collector.observability.svc.cluster.local:4317" desc:"OpenTelemetry Collector Endpoint" split_words:"true"`
+	MetricsExportInterval  time.Duration       `default:"10s" desc:"interval between mertics exports" split_words:"true"`
+	PprofEnabled           bool                `default:"false" desc:"is pprof enabled" split_words:"true"`
+	PprofListenOn          string              `default:"localhost:6060" desc:"pprof URL to ListenAndServe" split_words:"true"`
+}
+
+// Process prints and processes env to config
+func (c *Config) Process() error {
+	if err := envconfig.Usage("nsm", c); err != nil {
+		return errors.Wrap(err, "cannot show usage of envconfig nsm")
+	}
+	if err := envconfig.Process("nsm", c); err != nil {
+		return errors.Wrap(err, "cannot process envconfig nsm")
+	}
+	return nil
+}
 
 func main() {
 	// ********************************************************************************
@@ -113,8 +145,8 @@ func main() {
 	// ********************************************************************************
 	log.FromContext(ctx).Infof("executing phase 1: get config from environment")
 	// ********************************************************************************
-	config, err := internal.LoadConfig(ctx)
-	if err != nil {
+	config := new(Config)
+	if err := config.Process(); err != nil {
 		logrus.Fatal(err.Error())
 	}
 	l, err := logrus.ParseLevel(config.LogLevel)
@@ -126,6 +158,8 @@ func main() {
 		syscall.SIGUSR1: logrus.TraceLevel,
 		syscall.SIGUSR2: l,
 	})
+
+	config.retrieveACLRules(ctx)
 
 	log.FromContext(ctx).Infof("Config: %#v", config)
 
@@ -317,4 +351,29 @@ func notifyContext() (context.Context, context.CancelFunc) {
 		syscall.SIGTERM,
 		syscall.SIGQUIT,
 	)
+}
+
+func (c *Config) retrieveACLRules(ctx context.Context) {
+	logger := log.FromContext(ctx).WithField("acl", "config")
+
+	raw, err := os.ReadFile(filepath.Clean(c.ACLConfigPath))
+	if err != nil {
+		logger.Errorf("Error reading config file: %v", err)
+		return
+	}
+	logger.Infof("Read config file successfully")
+
+	var rv map[string]acl_types.ACLRule
+	err = yaml.Unmarshal(raw, &rv)
+	if err != nil {
+		logger.Errorf("Error parsing config file: %v", err)
+		return
+	}
+	logger.Infof("Parsed acl rules successfully")
+
+	for _, v := range rv {
+		c.ACLConfig = append(c.ACLConfig, v)
+	}
+
+	logger.Infof("Result rules:%v", c.ACLConfig)
 }
