@@ -182,17 +182,17 @@
 
 ### 实施任务 - 用户场景5
 
-- [ ] T057 [P] [US5] 创建internal/registry.go文件
-- [ ] T058 [US5] 实现NewRegistryClient函数创建NSM注册客户端（main.go行295-304）
-- [ ] T059 [US5] 在NewRegistryClient中配置ClientURL、DialOptions和AdditionalFunctionality
-- [ ] T060 [US5] 配置授权策略WithAuthorizeNSERegistryClient
-- [ ] T061 [US5] 实现RegisterEndpoint函数向NSM Manager注册端点（main.go行305-319）
-- [ ] T062 [US5] 在RegisterEndpoint中构造NetworkServiceEndpoint对象
-- [ ] T063 [US5] 为NewRegistryClient和RegisterEndpoint添加中文文档注释
-- [ ] T064 [US5] 修改main.go使用internal.NewRegistryClient创建注册客户端
-- [ ] T065 [US5] 修改main.go使用internal.RegisterEndpoint注册端点
-- [ ] T066 [US5] 验证构建和端点注册功能
-- [ ] T067 [US5] Git提交：`git commit -m "重构: 提取registry模块到internal/registry.go"`
+- [X] T057 [P] [US5] 创建internal/registry.go文件
+- [X] T058 [US5] 实现NewRegistryClient函数创建NSM注册客户端（main.go行295-304）
+- [X] T059 [US5] 在NewRegistryClient中配置ClientURL、DialOptions和AdditionalFunctionality
+- [X] T060 [US5] 配置授权策略WithAuthorizeNSERegistryClient
+- [X] T061 [US5] 实现RegisterEndpoint函数向NSM Manager注册端点（main.go行305-319）
+- [X] T062 [US5] 在RegisterEndpoint中构造NetworkServiceEndpoint对象
+- [X] T063 [US5] 为NewRegistryClient和RegisterEndpoint添加中文文档注释
+- [X] T064 [US5] 修改main.go使用internal.NewRegistryClient创建注册客户端
+- [X] T065 [US5] 修改main.go使用internal.RegisterEndpoint注册端点
+- [X] T066 [US5] 验证构建和端点注册功能
+- [X] T067 [US5] Git提交：`git commit -m "重构: 提取registry模块到internal/registry.go"`
 
 **检查点**: NSM注册逻辑独立工作，端点注册和策略应用正常
 
