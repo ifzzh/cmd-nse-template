@@ -150,3 +150,16 @@ Events:
 
 === GIT COMMIT & PUSH LOGS (repo root) ===
 + cd /home/zhengzihao/cmd-nse-template/samenode-firewall/.. && git add .
++ git commit -m '推送logs'
+[001-refactor-structure 90b3617] 推送logs
+ 7 files changed, 13014 insertions(+), 3 deletions(-)
+ create mode 100644 samenode-firewall/logs/cmd-nsc-init.log
+ create mode 100644 samenode-firewall/logs/cmdline.log
+ create mode 100644 samenode-firewall/logs/nse-firewall-vpp.log
+ create mode 100644 samenode-firewall/logs/nse-nat-vpp.log
+ mode change 100644 => 100755 samenode-firewall/nsectl.sh
++ git push
+To github.com:ifzzh/cmd-nse-template.git
+   6205d1e..90b3617  001-refactor-structure -> 001-refactor-structure
+
+=== DONE ===
