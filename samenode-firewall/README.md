@@ -34,8 +34,8 @@ watch kubectl get pod -n ns-nse-composition -o wide
 kubectl exec -n ns-nse-composition deploy/nse-firewall-vpp -- vppctl show acl-plugin acl
 
 # 保存日志到本地
-kubectl logs -n ns-nse-composition alpine -c cmd-nsc-init > logs/cmd-nsc-init.log
-kubectl logs -n ns-nse-composition deploy/nse-firewall-vpp > logs/nse-firewall-vpp.log
+kubectl logs -n ns-nse-composition alpine -c cmd-nsc-init > samenode-firewall/logs/cmd-nsc-init.log
+kubectl logs -n ns-nse-composition deploy/nse-firewall-vpp > samenode-firewall/logs/nse-firewall-vpp.log
 ```
 
 ### 3. 等待应用就绪 / Wait for Applications Ready

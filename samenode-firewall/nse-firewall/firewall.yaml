@@ -18,7 +18,7 @@ spec:
       containers:
         - name: nse
           image: ifzzh520/vpp-acl-firewall:v1.0.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: SPIFFE_ENDPOINT_SOCKET
               value: unix:///run/spire/sockets/agent.sock
