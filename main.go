@@ -29,7 +29,6 @@ import (
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 
 	// NSM SDK - VPP集成
-	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/acl"
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/mechanisms/memif"
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/up"
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/xconnect"
@@ -61,6 +60,7 @@ import (
 
 	// 本地模块
 	"github.com/ifzzh/cmd-nse-template/internal"
+	"github.com/ifzzh/cmd-nse-template/internal/acl"
 )
 
 func main() {
