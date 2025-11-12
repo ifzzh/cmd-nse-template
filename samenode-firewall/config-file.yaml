@@ -1,0 +1,54 @@
+---
+# VPP ACL 防火墙规则配置文件 / VPP ACL Firewall Rules Configuration
+#
+# 规则说明 / Rule Description:
+#   - proto: 协议号（6=TCP, 17=UDP, 1=ICMP）/ Protocol number
+#   - srcportoricmptypelast: 源端口范围上限 / Source port range upper limit
+#   - dstportoricmpcodefirst: 目标端口范围下限 / Destination port range lower limit
+#   - dstportoricmpcodelast: 目标端口范围上限 / Destination port range upper limit
+#   - ispermit: 1=允许, 0=拒绝 / 1=Allow, 0=Deny
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: firewall-config-file
+data:
+    config.yaml: |
+        # iperf3 性能测试端口（TCP）/ iperf3 performance test port (TCP)
+        allow tcp5201:
+            proto: 6                        # TCP 协议
+            srcportoricmptypelast: 65535    # 源端口: 任意
+            dstportoricmpcodefirst: 5201    # 目标端口: 5201
+            dstportoricmpcodelast: 5201
+            ispermit: 1                     # 允许
+
+        # iperf3 性能测试端口（UDP）/ iperf3 performance test port (UDP)
+        allow udp5201:
+            proto: 17                       # UDP 协议
+            srcportoricmptypelast: 65535    # 源端口: 任意
+            dstportoricmpcodefirst: 5201    # 目标端口: 5201
+            dstportoricmpcodelast: 5201
+            ispermit: 1                     # 允许
+
+        # ICMP ping 测试 / ICMP ping test
+        allow icmp:
+            ispermit: 1                     # 允许
+            proto: 1                        # ICMP 协议
+            srcportoricmptypelast: 65535
+            dstportoricmpcodelast: 65535
+
+        # 禁止 HTTP 备用端口 / Forbid HTTP alternate port
+        forbid tcp8080:
+            proto: 6                        # TCP 协议
+            srcportoricmptypelast: 65535    # 源端口: 任意
+            dstportoricmpcodefirst: 8080    # 目标端口: 8080
+            dstportoricmpcodelast: 8080
+            ispermit: 0                     # 拒绝（注意: 默认值，可省略）
+
+        # 禁止 HTTP 标准端口 / Forbid HTTP standard port
+        forbid tcp80:
+            proto: 6                        # TCP 协议
+            srcportoricmptypelast: 65535    # 源端口: 任意
+            dstportoricmpcodefirst: 80      # 目标端口: 80
+            dstportoricmpcodelast: 80
+            ispermit: 0                     # 拒绝（注意: 默认值，可省略）

@@ -1,0 +1,21 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ns-nse-composition
+
+resources:
+- ns.yaml
+- config-file.yaml
+- sfc.yaml
+- client.yaml
+- nse-firewall
+- server.yaml
+
+
+patches:
+- path: server-patch.yaml
+
+configMapGenerator:
+  - name: nginx-config
+    files:
+      - nginx.conf
