@@ -863,20 +863,33 @@ Copyright © 2024 OpenInfra Foundation Europe. All rights reserved.
 ---
 
 **最后更新**: 2025-11-13
-**版本**: v1.0.1
+**版本**: v1.0.2
 **维护者**: [@ifzzh](https://github.com/ifzzh)
 
 ## 🔄 版本历史 / Version History
 
-### v1.0.1 (2025-11-13) - ACL 模块本地化 + 测试框架
+### v1.0.2 (2025-11-13) - ACL 模块本地化迭代 2: binapi/acl
+- ✅ 本地化 `govpp/binapi/acl` 模块到 `internal/binapi_acl/`
+- ✅ 依赖本地化的 `acl_types` 模块 (`../binapi_acl_types`)
+- ✅ 添加完整的文档和升级指南 ([internal/binapi_acl/README.md](internal/binapi_acl/README.md))
+- ✅ 验证编译和测试通过
+- ✅ 更新 go.mod replace 指令
+- ✅ Docker 镜像: `ifzzh520/vpp-acl-firewall:v1.0.2`
+
+**本地化模块清单**:
+- `internal/binapi_acl_types/` - VPP ACL 类型定义 (v1.0.1)
+- `internal/binapi_acl/` - VPP ACL 插件 API 和 RPC (v1.0.2)
+
+### v1.0.1 (2025-11-13) - ACL 模块本地化迭代 1 + 测试框架
 - ✅ 本地化 `govpp/binapi/acl_types` 模块到 `internal/binapi_acl_types/`
 - ✅ 添加 go.mod replace 指令,减少外部依赖
-- ✅ 添加模块来源文档和升级指南
+- ✅ 添加模块来源文档和升级指南 ([internal/binapi_acl_types/README.md](internal/binapi_acl_types/README.md))
 - ✅ 更新 Kubernetes 部署配置使用新镜像
 - ✅ 创建防火墙测试框架 (`firewall-test.sh`, 6个测试用例)
 - ✅ 重构 `nsectl.sh` 为基于 NF_TYPE 的通用控制脚本
 - ✅ 添加测试文档 ([TESTING.md](samenode-firewall/TESTING.md))
 - ✅ **验证完成** (2025-11-13): 全流程测试通过,日志已收集到 `samenode-firewall/logs/`
+- ✅ Docker 镜像: `ifzzh520/vpp-acl-firewall:v1.0.1`
 
 ### v1.0.0 (2025-01-12) - 初始版本
 - ✅ 本地化 `sdk-vpp/pkg/networkservice/...` ACL 模块到 `internal/acl/`
@@ -884,3 +897,4 @@ Copyright © 2024 OpenInfra Foundation Europe. All rights reserved.
 - ✅ 添加中文注释和文档
 - ✅ Docker 多阶段构建优化
 - ✅ Kubernetes 测试部署配置
+- ✅ Docker 镜像: `ifzzh520/vpp-acl-firewall:v1.0.0`
