@@ -1,25 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Simple helper to repeat common kubectl workflows for this repo
+# NSE 通用控制脚本 / NSE Generic Control Script
+# 通过 NF_TYPE 变量自动推断 NSE 类型并生成相关配置
+#
 # Usage examples:
-#   ./natctl.sh apply
-#   ./natctl.sh watch
-#   ./natctl.sh get
-#   ./natctl.sh logs
-#   ./natctl.sh describe
-#   ./natctl.sh delete
+#   ./nsectl.sh apply
+#   ./nsectl.sh watch
+#   ./nsectl.sh test
+#   ./nsectl.sh full
 #
 # Options:
 #   -n|--namespace <ns>    Override namespace (default: ns-nse-composition)
 #   -k|--kustomize <dir>   Kustomize dir for apply (default: .)
 #   -w|--watch-interval N  watch interval seconds (default: 2)
+#   -t|--nf-type <type>    Network Function type (auto-detected from directory name)
 #   -h|--help              Show help
 
+# ============================================================================
+# 核心配置: NF_TYPE (网络功能类型)
+# 从目录名自动推断 (例如: samenode-firewall -> firewall)
+# 可通过 -t|--nf-type 参数覆盖
+# ============================================================================
+script_dir_init() {
+  cd "$(dirname "$0")" && pwd
+}
+
+NF_TYPE="${NF_TYPE:-}"  # 允许环境变量覆盖
+if [[ -z "$NF_TYPE" ]]; then
+  # 从目录名自动推断 NF 类型 (提取最后一个 - 后的部分)
+  local_dir=$(basename "$(script_dir_init)")
+  NF_TYPE="${local_dir##*-}"
+fi
+
+# ============================================================================
+# 基于 NF_TYPE 自动生成的派生变量
+# ============================================================================
 NAMESPACE="ns-nse-composition"
 KUSTOMIZE_DIR="."
 WATCH_INTERVAL=2
-APP_LABEL="nse-firewall-vpp"
+
+# APP_LABEL: nse-{NF_TYPE}-vpp (例如: nse-firewall-vpp, nse-nat-vpp)
+APP_LABEL="nse-${NF_TYPE}-vpp"
+
+# LOG_FILE_PREFIX: 日志文件前缀 (例如: nse-firewall-vpp, nse-nat-vpp)
+LOG_FILE_PREFIX="nse-${NF_TYPE}-vpp"
+
+# TEST_SCRIPT_NAME: 测试脚本名称 (例如: firewall-test.sh, nat-test.sh)
+TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
+
+# POD_DISPLAY_NAME: Pod 显示名称 (例如: 防火墙, NAT)
+case "$NF_TYPE" in
+  firewall) POD_DISPLAY_NAME="防火墙 / Firewall" ;;
+  nat)      POD_DISPLAY_NAME="NAT" ;;
+  vpn)      POD_DISPLAY_NAME="VPN" ;;
+  proxy)    POD_DISPLAY_NAME="代理 / Proxy" ;;
+  *)        POD_DISPLAY_NAME="$NF_TYPE" ;;
+esac
 
 # Parse flags before subcommand
 ACTION="help"
@@ -32,14 +69,29 @@ while [[ ${#ARGS[@]} -gt 0 ]]; do
       KUSTOMIZE_DIR="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2}) ;;
     -w|--watch-interval)
       WATCH_INTERVAL="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2}) ;;
+    -t|--nf-type)
+      # 覆盖 NF_TYPE 并重新生成派生变量
+      NF_TYPE="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2})
+      APP_LABEL="nse-${NF_TYPE}-vpp"
+      LOG_FILE_PREFIX="nse-${NF_TYPE}-vpp"
+      TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
+      case "$NF_TYPE" in
+        firewall) POD_DISPLAY_NAME="防火墙 / Firewall" ;;
+        nat)      POD_DISPLAY_NAME="NAT" ;;
+        vpn)      POD_DISPLAY_NAME="VPN" ;;
+        proxy)    POD_DISPLAY_NAME="代理 / Proxy" ;;
+        *)        POD_DISPLAY_NAME="$NF_TYPE" ;;
+      esac
+      ;;
     -a|--app-label)
+      # 保留此选项用于完全自定义 APP_LABEL (覆盖自动生成)
       APP_LABEL="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2}) ;;
     -h|--help)
       ACTION="help"; ARGS=(${ARGS[@]:1}); break ;;
     apply|get|watch|logs|describe|delete|test|full|help)
       ACTION="${ARGS[0]}"; ARGS=(${ARGS[@]:1}); break ;;
     *)
-      echo "Unknown option or action: ${ARGS[0]}" >&2
+      echo "未知选项或命令: ${ARGS[0]} / Unknown option or action: ${ARGS[0]}" >&2
       ACTION="help"; break ;;
   esac
 done
@@ -76,9 +128,12 @@ get_alpine_pod() {
 }
 
 print_context() {
+  echo "=========================================="
+  echo "网络功能类型 / NF Type:          $NF_TYPE ($POD_DISPLAY_NAME)"
   echo "Kubernetes 上下文 / Kube context: $(kubectl config current-context 2>/dev/null || echo unknown)"
   echo "命名空间 / Namespace:            $NAMESPACE"
   echo "应用标签 / App label:            app=$APP_LABEL"
+  echo "=========================================="
 }
 
 cmd_apply() {
@@ -124,9 +179,9 @@ cmd_logs() {
   if [[ -n "$vpp_pod" ]]; then
     echo "保存 $vpp_pod 的日志 / Saving logs for $vpp_pod"
     run kubectl logs -n "$NAMESPACE" "$vpp_pod" \
-      > "$(script_dir)/logs/nse-firewall-vpp.log" || true
+      > "$(script_dir)/logs/${LOG_FILE_PREFIX}.log" || true
   else
-    echo "警告: 未找到 nse-firewall-vpp pod,跳过 vpp 日志 / WARN: nse-firewall-vpp pod not found; skipping vpp logs" >&2
+    echo "警告: 未找到 $APP_LABEL pod,跳过 ${LOG_FILE_PREFIX} 日志 / WARN: $APP_LABEL pod not found; skipping ${LOG_FILE_PREFIX} logs" >&2
   fi
 
   echo "日志已写入 / Logs written to $(script_dir)/logs/"
@@ -160,30 +215,27 @@ wait_for_app_pods_ready() {
 }
 
 # 动态调用 NSE 特定的测试脚本
-# 自动查找与当前目录名称匹配的测试脚本 (例如: firewall-test.sh)
+# 基于 NF_TYPE 自动查找测试脚本 (例如: firewall-test.sh, nat-test.sh)
 cmd_test() {
   print_context
   local SD
   SD="$(script_dir)"
 
-  # 从目录名提取 NSE 类型 (例如: samenode-firewall -> firewall)
-  local dir_name
-  dir_name=$(basename "$SD")
-  local nse_type="${dir_name##*-}"  # 提取最后一个 - 后面的部分
-
-  # 构建测试脚本路径
-  local test_script="$SD/${nse_type}-test.sh"
+  # 构建测试脚本路径 (使用 TEST_SCRIPT_NAME 变量)
+  local test_script="$SD/${TEST_SCRIPT_NAME}"
 
   if [[ -f "$test_script" && -x "$test_script" ]]; then
-    echo "运行 NSE 特定测试脚本: $test_script"
-    echo "测试命名空间: $NAMESPACE"
+    echo "运行 ${POD_DISPLAY_NAME} 测试脚本 / Running ${POD_DISPLAY_NAME} test script: $test_script"
+    echo "测试命名空间 / Test namespace: $NAMESPACE"
     echo ""
     "$test_script" "$NAMESPACE"
   else
-    echo "未找到测试脚本: $test_script" >&2
-    echo "请创建可执行的测试脚本,例如:" >&2
+    echo "未找到测试脚本 / Test script not found: $test_script" >&2
+    echo "请创建可执行的测试脚本 / Please create an executable test script:" >&2
     echo "  touch $test_script" >&2
     echo "  chmod +x $test_script" >&2
+    echo ""
+    echo "提示 / Hint: 测试脚本命名规则 / Test script naming: ${NF_TYPE}-test.sh" >&2
     exit 1
   fi
 }
@@ -269,7 +321,7 @@ cmd_describe() {
   local vpp_pod
   vpp_pod=$(get_vpp_pod)
   if [[ -z "$vpp_pod" ]]; then
-    echo "在命名空间 '$NAMESPACE' 中未找到 nse-firewall-vpp pod / nse-firewall-vpp pod not found in namespace '$NAMESPACE'" >&2
+    echo "在命名空间 '$NAMESPACE' 中未找到 ${POD_DISPLAY_NAME} pod (app=$APP_LABEL) / ${POD_DISPLAY_NAME} pod not found in namespace '$NAMESPACE' (app=$APP_LABEL)" >&2
     exit 1
   fi
   run kubectl describe pod -n "$NAMESPACE" "$vpp_pod"
@@ -287,16 +339,21 @@ cmd_delete() {
 }
 
 cmd_help() {
-  cat <<'EOF'
+  cat <<EOF
+========================================
+NSE 通用控制脚本 / NSE Generic Control Script
+当前 NF 类型 / Current NF Type: $NF_TYPE ($POD_DISPLAY_NAME)
+========================================
+
 使用方法 / Usage: nsectl.sh [options] <action>
 
 命令 / Actions:
   apply        应用 kustomize 配置 / kubectl apply -k <dir> (default: .)
   get          查看命名空间中的 Pod / kubectl get pods in namespace
   watch        实时监控 Pod 状态 / watch kubectl get pods (requires 'watch')
-  logs         收集日志到 ./logs/ / collect logs to ./logs/cmd-nsc-init.log and ./logs/nse-firewall-vpp.log
-  describe     查看 nse-firewall-vpp pod 详情 / describe the nse-firewall-vpp pod
-  test         运行 NSE 特定测试 / run NSE-specific tests (dynamically calls <nse-type>-test.sh)
+  logs         收集日志到 ./logs/ / collect logs to ./logs/
+  describe     查看 ${POD_DISPLAY_NAME} pod 详情 / describe the ${POD_DISPLAY_NAME} pod
+  test         运行 ${POD_DISPLAY_NAME} 测试 / run ${POD_DISPLAY_NAME} tests (${TEST_SCRIPT_NAME})
   full         完整流程 / run: apply -> wait Ready -> sleep 10s -> test -> logs -> describe -> git push
   delete       删除命名空间 / delete the namespace
   help         显示此帮助信息 / show this message
@@ -305,7 +362,8 @@ cmd_help() {
   -n, --namespace <ns>      命名空间 / namespace (default: ns-nse-composition)
   -k, --kustomize <dir>     kustomize 目录 / kustomize dir for apply (default: .)
   -w, --watch-interval <n>  监控刷新间隔(秒) / watch refresh interval seconds (default: 2)
-  -a, --app-label <value>   目标应用标签 / value for 'app' label to target (default: nse-firewall-vpp)
+  -t, --nf-type <type>      网络功能类型 / Network Function type (default: auto-detect from directory)
+  -a, --app-label <value>   应用标签 / app label (default: nse-\${NF_TYPE}-vpp, current: $APP_LABEL)
   -h, --help                显示帮助 / show help
 
 示例 / Examples:
@@ -318,15 +376,41 @@ cmd_help() {
   ./nsectl.sh full                         # 完整流程(推荐)
   ./nsectl.sh delete                       # 删除资源
   ./nsectl.sh -n my-namespace test         # 指定命名空间测试
+  ./nsectl.sh -t nat test                  # 覆盖 NF 类型为 NAT 并运行测试
 
+========================================
+NF_TYPE 变量配置 / NF_TYPE Variable Configuration:
+========================================
+
+NF_TYPE 是核心配置变量,自动推断或手动指定:
+- 自动推断: 从目录名提取 (例如: samenode-firewall -> firewall)
+- 手动指定: 使用 -t|--nf-type 选项
+- 环境变量: export NF_TYPE=nat
+
+基于 NF_TYPE 自动生成的派生变量:
+- APP_LABEL        = nse-\${NF_TYPE}-vpp     (当前: $APP_LABEL)
+- LOG_FILE_PREFIX  = nse-\${NF_TYPE}-vpp     (当前: $LOG_FILE_PREFIX)
+- TEST_SCRIPT_NAME = \${NF_TYPE}-test.sh     (当前: $TEST_SCRIPT_NAME)
+- POD_DISPLAY_NAME = 根据 NF_TYPE 映射      (当前: $POD_DISPLAY_NAME)
+
+支持的 NF 类型 / Supported NF Types:
+- firewall : 防火墙 / Firewall
+- nat      : NAT
+- vpn      : VPN
+- proxy    : 代理 / Proxy
+- 其他     : 使用 NF_TYPE 原值
+
+========================================
 测试脚本约定 / Test Script Convention:
-  'test' 命令会自动查找并执行: <nse-type>-test.sh
-  例如,在 'samenode-firewall' 目录中,会运行: firewall-test.sh
-  这允许不同的 NSE 类型拥有各自的测试脚本。
+========================================
 
-  The 'test' action automatically looks for and executes: <nse-type>-test.sh
-  For example, in directory 'samenode-firewall', it will run: firewall-test.sh
-  This allows different NSE types to have their own test scripts.
+测试脚本命名规则: \${NF_TYPE}-test.sh
+示例:
+- firewall-test.sh (当前目录: 防火墙测试)
+- nat-test.sh      (NAT 测试)
+- vpn-test.sh      (VPN 测试)
+
+这允许不同的 NSE 类型拥有各自的测试脚本,实现通用控制脚本。
 EOF
 }
 
