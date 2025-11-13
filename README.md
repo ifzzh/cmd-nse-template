@@ -308,10 +308,11 @@ ifzzh520/vpp-acl-firewall       debug     580MB
 
 #### 📂 **本地化模块清单**
 
-| 本地模块 | 原始来源 | 版本/哈希 | 说明 |
-|---------|---------|----------|------|
-| `internal/binapi_acl_types/` | `github.com/networkservicemesh/govpp/binapi/acl_types` | `8a444680fbba` | VPP ACL 类型定义 |
-| `internal/acl/` | `github.com/networkservicemesh/sdk-vpp/pkg/networkservice/...` | 自研模块 | ACL 防火墙核心逻辑 |
+| 本地模块 | 原始来源 | 版本/哈希 | 镜像版本 | 说明 |
+|---------|---------|----------|---------|------|
+| `internal/binapi_acl_types/` | `github.com/networkservicemesh/govpp/binapi/acl_types` | `8a444680fbba` | v1.0.1 | VPP ACL 类型定义 |
+| `internal/binapi_acl/` | `github.com/networkservicemesh/govpp/binapi/acl` | `8a444680fbba` | v1.0.2 | VPP ACL 插件 API 和 RPC |
+| `internal/acl/` | `github.com/networkservicemesh/sdk-vpp/pkg/networkservice/...` | 自研模块 | v1.0.0 | ACL 防火墙核心逻辑 |
 
 #### 🔄 **replace 指令工作原理**
 
@@ -326,6 +327,7 @@ require (
 
 // ACL 模块本地化 replace 指令
 replace github.com/networkservicemesh/govpp/binapi/acl_types => ./internal/binapi_acl_types
+replace github.com/networkservicemesh/govpp/binapi/acl => ./internal/binapi_acl
 ```
 
 **效果:**
@@ -385,6 +387,8 @@ go test ./...
 #### 📖 **相关文档**
 
 - [internal/binapi_acl_types/README.md](internal/binapi_acl_types/README.md) - ACL 类型模块来源与升级指南
+- [internal/binapi_acl/README.md](internal/binapi_acl/README.md) - ACL 插件模块来源与升级指南
+- [specs/002-acl-localization/VERSION-TRACEABILITY.md](specs/002-acl-localization/VERSION-TRACEABILITY.md) - 版本追溯文档
 - [go.mod](go.mod) - 查看完整的 replace 指令配置
 
 ---
@@ -622,9 +626,15 @@ cmd-nse-firewall-vpp/
 │   ├── acl/                         # ACL 防火墙模块（sdk-vpp 本地化）
 │   │   ├── common.go                # 公共函数（185 行，+69 注释）
 │   │   └── server.go                # 服务器实现（168 行，+75 注释）
-│   ├── binapi_acl_types/            # VPP ACL 类型绑定（govpp 本地化）
+│   ├── binapi_acl_types/            # VPP ACL 类型绑定（govpp 本地化, v1.0.1）
 │   │   ├── acl_types.ba.go          # ACL 类型定义（自动生成）
 │   │   ├── go.mod                   # 模块依赖声明
+│   │   ├── go.sum                   # 依赖校验和
+│   │   └── README.md                # 模块来源和升级指南
+│   ├── binapi_acl/                  # VPP ACL 插件绑定（govpp 本地化, v1.0.2）
+│   │   ├── acl.ba.go                # ACL 消息定义（自动生成）
+│   │   ├── acl_rpc.ba.go            # ACL RPC 定义（自动生成）
+│   │   ├── go.mod                   # 模块依赖声明（依赖 binapi_acl_types）
 │   │   ├── go.sum                   # 依赖校验和
 │   │   └── README.md                # 模块来源和升级指南
 │   ├── config/                      # 配置管理模块
@@ -874,6 +884,14 @@ Copyright © 2024 OpenInfra Foundation Europe. All rights reserved.
 - ✅ 添加完整的文档和升级指南 ([internal/binapi_acl/README.md](internal/binapi_acl/README.md))
 - ✅ 验证编译和测试通过
 - ✅ 更新 go.mod replace 指令
+- ✅ 创建版本追溯文档 ([VERSION-TRACEABILITY.md](specs/002-acl-localization/VERSION-TRACEABILITY.md))
+- ✅ **验证完成** (2025-01-13): 全流程测试通过,日志已收集到 `samenode-firewall/logs/`
+  - ✅ Pod 就绪检查
+  - ✅ ICMP 连通性测试
+  - ✅ VPP ACL 规则验证
+  - ✅ TCP 端口过滤 (80 阻止, 8080 允许)
+  - ✅ iperf3 性能测试
+  - ✅ SPIRE 身份验证
 - ✅ Docker 镜像: `ifzzh520/vpp-acl-firewall:v1.0.2`
 
 **本地化模块清单**:

@@ -177,12 +177,13 @@ kubectl logs -n spire daemonset/spire-agent
 
 ## 验证状态 / Verification Status
 
-### ✅ 最新验证 (2025-11-13)
+### ✅ 最新验证 (2025-01-13)
 
 **验证环境**:
 - Kubernetes 集群: `kubernetes-admin@kubernetes`
 - 命名空间: `ns-nse-composition`
 - 镜像版本: `ifzzh520/vpp-acl-firewall:v1.0.2`
+- ACL 模块版本: binapi/acl v1.0.2 (本地化), binapi/acl_types v1.0.1 (本地化)
 
 **验证方法**:
 ```bash
@@ -198,9 +199,11 @@ cd samenode-firewall
 - ✅ 测试 5: iperf3 性能测试 - **通过**
 - ✅ 测试 6: SPIRE 身份验证 - **通过**
 
+**验证状态**: ✅ 所有测试通过，无错误日志
+
 **日志文件**:
-- [logs/cmdline.log](logs/cmdline.log) - 完整命令行输出
-- [logs/cmd-nsc-init.log](logs/cmd-nsc-init.log) - NSC 初始化日志
-- [logs/nse-firewall-vpp.log](logs/nse-firewall-vpp.log) - 防火墙服务日志
+- [logs/cmdline.log](logs/cmdline.log) - 完整命令行输出 (✓ 无错误)
+- [logs/cmd-nsc-init.log](logs/cmd-nsc-init.log) - NSC 初始化日志 (✓ 连接成功)
+- [logs/nse-firewall-vpp.log](logs/nse-firewall-vpp.log) - 防火墙服务日志 (✓ 无错误)
 
 **详细测试报告**: 参见 [TESTING.md](TESTING.md)
