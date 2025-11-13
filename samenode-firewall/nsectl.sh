@@ -76,14 +76,14 @@ get_alpine_pod() {
 }
 
 print_context() {
-  echo "Kube context: $(kubectl config current-context 2>/dev/null || echo unknown)"
-  echo "Namespace:    $NAMESPACE"
-  echo "App label:    app=$APP_LABEL"
+  echo "Kubernetes 上下文 / Kube context: $(kubectl config current-context 2>/dev/null || echo unknown)"
+  echo "命名空间 / Namespace:            $NAMESPACE"
+  echo "应用标签 / App label:            app=$APP_LABEL"
 }
 
 cmd_apply() {
   print_context
-  echo "Applying kustomize from '$KUSTOMIZE_DIR'..."
+  echo "从 '$KUSTOMIZE_DIR' 应用 kustomize 配置 / Applying kustomize from '$KUSTOMIZE_DIR'..."
   run kubectl apply -k "$KUSTOMIZE_DIR"
 }
 
@@ -107,54 +107,54 @@ cmd_watch() {
 cmd_logs() {
   print_context
   ensure_logs_dir
-  # Write logs to fixed filenames (no timestamps) per user's preference
+  # 将日志写入固定文件名（不带时间戳）
 
   local alpine_pod
   alpine_pod=$(get_alpine_pod)
   if [[ -n "$alpine_pod" ]]; then
-    echo "Saving logs for $alpine_pod (container: cmd-nsc-init)"
+    echo "保存 $alpine_pod 的日志 (容器: cmd-nsc-init) / Saving logs for $alpine_pod (container: cmd-nsc-init)"
     run kubectl logs -n "$NAMESPACE" "$alpine_pod" -c cmd-nsc-init \
       > "$(script_dir)/logs/cmd-nsc-init.log" || true
   else
-    echo "WARN: Alpine pod not found; skipping cmd-nsc-init logs" >&2
+    echo "警告: 未找到 Alpine pod,跳过 cmd-nsc-init 日志 / WARN: Alpine pod not found; skipping cmd-nsc-init logs" >&2
   fi
 
   local vpp_pod
   vpp_pod=$(get_vpp_pod)
   if [[ -n "$vpp_pod" ]]; then
-    echo "Saving logs for $vpp_pod"
+    echo "保存 $vpp_pod 的日志 / Saving logs for $vpp_pod"
     run kubectl logs -n "$NAMESPACE" "$vpp_pod" \
-      > "$(script_dir)/logs/nse-nat-vpp.log" || true
+      > "$(script_dir)/logs/nse-firewall-vpp.log" || true
   else
-    echo "WARN: nse-nat-vpp pod not found; skipping vpp logs" >&2
+    echo "警告: 未找到 nse-firewall-vpp pod,跳过 vpp 日志 / WARN: nse-firewall-vpp pod not found; skipping vpp logs" >&2
   fi
 
-  echo "Logs written to $(script_dir)/logs/"
+  echo "日志已写入 / Logs written to $(script_dir)/logs/"
 }
 
-# Wait until at least one pod with app label exists (up to 60s), then wait Ready (up to 180s)
+# 等待带有 app 标签的 Pod 出现(最多 60 秒),然后等待就绪(最多 180 秒)
 wait_for_app_pods_ready() {
   local exist_timeout=60
   local start_ts=$(date +%s)
-  echo "Waiting for pods with label app=$APP_LABEL to appear (timeout: ${exist_timeout}s)..."
+  echo "等待带有标签 app=$APP_LABEL 的 Pod 出现 (超时: ${exist_timeout}秒) / Waiting for pods with label app=$APP_LABEL to appear (timeout: ${exist_timeout}s)..."
   while true; do
     local count
     count=$(kubectl get pod -n "$NAMESPACE" -l app="$APP_LABEL" --no-headers 2>/dev/null | wc -l || true)
     if [[ "$count" -gt 0 ]]; then
-      echo "Found $count pod(s) with app=$APP_LABEL. Waiting for Ready (timeout: 180s)..."
+      echo "找到 $count 个 Pod (app=$APP_LABEL),等待就绪 (超时: 180秒) / Found $count pod(s) with app=$APP_LABEL. Waiting for Ready (timeout: 180s)..."
       break
     fi
     if (( $(date +%s) - start_ts >= exist_timeout )); then
-      echo "WARN: No pods with app=$APP_LABEL appeared within ${exist_timeout}s" >&2
+      echo "警告: ${exist_timeout}秒内未发现 app=$APP_LABEL 的 Pod / WARN: No pods with app=$APP_LABEL appeared within ${exist_timeout}s" >&2
       break
     fi
     sleep 2
   done
 
-  # If pods exist, wait for Ready
+  # 如果 Pod 存在,等待就绪
   if kubectl get pod -n "$NAMESPACE" -l app="$APP_LABEL" --no-headers >/dev/null 2>&1; then
     kubectl wait --for=condition=Ready pod -l app="$APP_LABEL" -n "$NAMESPACE" --timeout=180s || {
-      echo "WARN: kubectl wait did not complete successfully for app=$APP_LABEL" >&2
+      echo "警告: kubectl wait 未成功完成 (app=$APP_LABEL) / WARN: kubectl wait did not complete successfully for app=$APP_LABEL" >&2
     }
   fi
 }
@@ -195,71 +195,72 @@ cmd_full() {
   local REPO_ROOT
   REPO_ROOT="$SD/.."
   local cmdline_log="$SD/logs/cmdline.log"
-  # Capture all stdout/stderr from this block into cmdline.log while still showing on screen
+  # 将所有输出捕获到 cmdline.log 并同时显示在屏幕上
   {
-    echo "=== GIT PULL (repo root) ==="
+    echo "=== 拉取最新代码 / GIT PULL (repo root) ==="
     (
       cd "$REPO_ROOT" && {
         echo "+ cd $REPO_ROOT && git pull"
-        git pull || echo "WARN: git pull failed (continuing)" >&2
+        git pull || echo "警告: git pull 失败 (继续执行) / WARN: git pull failed (continuing)" >&2
       }
     )
     echo
 
-    echo "=== APPLY ==="
+    echo "=== 部署应用 / APPLY ==="
     print_context
-    echo "Applying kustomize from '$KUSTOMIZE_DIR'..."
+    echo "从 '$KUSTOMIZE_DIR' 应用 kustomize 配置 / Applying kustomize from '$KUSTOMIZE_DIR'..."
     kubectl apply -k "$KUSTOMIZE_DIR"
     echo
 
-    echo "=== WAIT READY (app=$APP_LABEL) ==="
+    echo "=== 等待 Pod 就绪 / WAIT READY (app=$APP_LABEL) ==="
     wait_for_app_pods_ready
     echo
 
-    echo "Current pods:"
+    echo "当前 Pod 状态 / Current pods:"
     kubectl get pod -n "$NAMESPACE" -o wide || true
     echo
 
-    echo "=== SLEEP 10s ==="
+    echo "=== 等待 10 秒 / SLEEP 10s ==="
     sleep 10
     echo
 
-    echo "Current pods:"
+    echo "当前 Pod 状态 / Current pods:"
     kubectl get pod -n "$NAMESPACE" -o wide || true
     echo
 
-    echo "=== RUN TESTS ==="
-    cmd_test || echo "WARN: Tests failed or not available" >&2
+    echo "=== 运行功能测试 / RUN TESTS ==="
+    cmd_test || echo "警告: 测试失败或不可用 / WARN: Tests failed or not available" >&2
     echo
 
-    echo "=== COLLECT LOGS ==="
+    echo "=== 收集日志 / COLLECT LOGS ==="
     cmd_logs
     echo
 
-    echo "=== DESCRIBE (app=$APP_LABEL) ==="
+    echo "=== 查看详情 / DESCRIBE (app=$APP_LABEL) ==="
     cmd_describe || true
     echo
 
-    echo "=== GIT COMMIT & PUSH LOGS (repo root) ==="
+    echo "=== 提交并推送日志 / GIT COMMIT & PUSH LOGS (repo root) ==="
     (
       cd "$REPO_ROOT" && {
         echo "+ cd $REPO_ROOT && git add ."
         git add .
         if ! git diff --cached --quiet; then
           echo "+ git commit -m '推送logs'"
-          git commit -m "推送logs" || echo "WARN: git commit failed" >&2
+          git commit -m "推送logs" || echo "警告: git commit 失败 / WARN: git commit failed" >&2
           echo "+ git push"
-          git push || echo "WARN: git push failed" >&2
+          git push || echo "警告: git push 失败 / WARN: git push failed" >&2
         else
-          echo "No changes to commit."
+          echo "没有变更需要提交 / No changes to commit."
         fi
       }
     )
     echo
 
-    echo "=== DONE ==="
+    echo "=== 完成 / DONE ==="
   } > >(tee "$cmdline_log") 2>&1
 
+  echo "完整流程执行完毕,命令行日志已保存到 $cmdline_log"
   echo "Full flow complete. Cmdline log saved to $cmdline_log"
 }
 
@@ -268,7 +269,7 @@ cmd_describe() {
   local vpp_pod
   vpp_pod=$(get_vpp_pod)
   if [[ -z "$vpp_pod" ]]; then
-    echo "nse-nat-vpp pod not found in namespace '$NAMESPACE'" >&2
+    echo "在命名空间 '$NAMESPACE' 中未找到 nse-firewall-vpp pod / nse-firewall-vpp pod not found in namespace '$NAMESPACE'" >&2
     exit 1
   fi
   run kubectl describe pod -n "$NAMESPACE" "$vpp_pod"
@@ -276,48 +277,53 @@ cmd_describe() {
 
 cmd_delete() {
   print_context
-  read -r -p "Delete namespace '$NAMESPACE'? [y/N] " ans
+  read -r -p "删除命名空间 '$NAMESPACE'? / Delete namespace '$NAMESPACE'? [y/N] " ans
   if [[ "$ans" =~ ^[Yy]$ ]]; then
     run kubectl delete ns "$NAMESPACE"
     run clear
   else
-    echo "Aborted."
+    echo "已取消 / Aborted."
   fi
 }
 
 cmd_help() {
   cat <<'EOF'
-Usage: nsectl.sh [options] <action>
+使用方法 / Usage: nsectl.sh [options] <action>
 
-Actions:
-  apply        kubectl apply -k <dir> (default: .)
-  get          kubectl get pods in namespace
-  watch        watch kubectl get pods (requires 'watch'; falls back otherwise)
-  logs         collect logs to ./logs/cmd-nsc-init.log and ./logs/nse-firewall-vpp.log
-  describe     describe the nse-firewall-vpp pod
-  test         run NSE-specific tests (dynamically calls <nse-type>-test.sh)
-  full         run: apply -> wait Ready -> sleep 10s -> test -> logs -> describe -> git push
-  delete       delete the namespace
-  help         show this message
+命令 / Actions:
+  apply        应用 kustomize 配置 / kubectl apply -k <dir> (default: .)
+  get          查看命名空间中的 Pod / kubectl get pods in namespace
+  watch        实时监控 Pod 状态 / watch kubectl get pods (requires 'watch')
+  logs         收集日志到 ./logs/ / collect logs to ./logs/cmd-nsc-init.log and ./logs/nse-firewall-vpp.log
+  describe     查看 nse-firewall-vpp pod 详情 / describe the nse-firewall-vpp pod
+  test         运行 NSE 特定测试 / run NSE-specific tests (dynamically calls <nse-type>-test.sh)
+  full         完整流程 / run: apply -> wait Ready -> sleep 10s -> test -> logs -> describe -> git push
+  delete       删除命名空间 / delete the namespace
+  help         显示此帮助信息 / show this message
 
-Options:
-  -n, --namespace <ns>      namespace (default: ns-nse-composition)
-  -k, --kustomize <dir>     kustomize dir for apply (default: .)
-  -w, --watch-interval <n>  watch refresh interval seconds (default: 2)
-  -a, --app-label <value>   value for 'app' label to target (default: nse-firewall-vpp)
-  -h, --help                show help
+选项 / Options:
+  -n, --namespace <ns>      命名空间 / namespace (default: ns-nse-composition)
+  -k, --kustomize <dir>     kustomize 目录 / kustomize dir for apply (default: .)
+  -w, --watch-interval <n>  监控刷新间隔(秒) / watch refresh interval seconds (default: 2)
+  -a, --app-label <value>   目标应用标签 / value for 'app' label to target (default: nse-firewall-vpp)
+  -h, --help                显示帮助 / show help
 
-Examples:
-  ./nsectl.sh apply
-  ./nsectl.sh watch
-  ./nsectl.sh get
-  ./nsectl.sh test
-  ./nsectl.sh logs
-  ./nsectl.sh describe
-  ./nsectl.sh full
-  ./nsectl.sh delete
+示例 / Examples:
+  ./nsectl.sh apply                        # 部署应用
+  ./nsectl.sh watch                        # 实时监控
+  ./nsectl.sh get                          # 查看 Pod
+  ./nsectl.sh test                         # 运行测试
+  ./nsectl.sh logs                         # 收集日志
+  ./nsectl.sh describe                     # 查看详情
+  ./nsectl.sh full                         # 完整流程(推荐)
+  ./nsectl.sh delete                       # 删除资源
+  ./nsectl.sh -n my-namespace test         # 指定命名空间测试
 
-Test Script Convention:
+测试脚本约定 / Test Script Convention:
+  'test' 命令会自动查找并执行: <nse-type>-test.sh
+  例如,在 'samenode-firewall' 目录中,会运行: firewall-test.sh
+  这允许不同的 NSE 类型拥有各自的测试脚本。
+
   The 'test' action automatically looks for and executes: <nse-type>-test.sh
   For example, in directory 'samenode-firewall', it will run: firewall-test.sh
   This allows different NSE types to have their own test scripts.
