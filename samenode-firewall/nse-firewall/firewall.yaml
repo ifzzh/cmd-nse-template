@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: nse
-          image: ifzzh520/vpp-acl-firewall:v1.0.0
+          image: ifzzh520/vpp-acl-firewall:v1.0.1
           imagePullPolicy: Always
           env:
             - name: SPIFFE_ENDPOINT_SOCKET
