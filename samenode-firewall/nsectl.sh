@@ -14,24 +14,20 @@ set -euo pipefail
 #   -n|--namespace <ns>    Override namespace (default: ns-nse-composition)
 #   -k|--kustomize <dir>   Kustomize dir for apply (default: .)
 #   -w|--watch-interval N  watch interval seconds (default: 2)
-#   -t|--nf-type <type>    Network Function type (auto-detected from directory name)
+#   -t|--nf-type <type>    Network Function type (default: hardcoded DEFAULT_NF_TYPE)
 #   -h|--help              Show help
 
 # ============================================================================
 # 核心配置: NF_TYPE (网络功能类型)
-# 从目录名自动推断 (例如: samenode-firewall -> firewall)
-# 可通过 -t|--nf-type 参数覆盖
+# 直接在脚本中配置,可通过环境变量或 -t|--nf-type 参数覆盖
 # ============================================================================
-script_dir_init() {
-  cd "$(dirname "$0")" && pwd
-}
 
-NF_TYPE="${NF_TYPE:-}"  # 允许环境变量覆盖
-if [[ -z "$NF_TYPE" ]]; then
-  # 从目录名自动推断 NF 类型 (提取最后一个 - 后的部分)
-  local_dir=$(basename "$(script_dir_init)")
-  NF_TYPE="${local_dir##*-}"
-fi
+# 默认 NF 类型 (请根据实际部署修改此值)
+# 常见值: firewall, nat, vpn, proxy
+DEFAULT_NF_TYPE="firewall"
+
+# 优先级: 环境变量 > 默认值
+NF_TYPE="${NF_TYPE:-$DEFAULT_NF_TYPE}"
 
 # ============================================================================
 # 基于 NF_TYPE 自动生成的派生变量
@@ -362,7 +358,7 @@ NSE 通用控制脚本 / NSE Generic Control Script
   -n, --namespace <ns>      命名空间 / namespace (default: ns-nse-composition)
   -k, --kustomize <dir>     kustomize 目录 / kustomize dir for apply (default: .)
   -w, --watch-interval <n>  监控刷新间隔(秒) / watch refresh interval seconds (default: 2)
-  -t, --nf-type <type>      网络功能类型 / Network Function type (default: auto-detect from directory)
+  -t, --nf-type <type>      网络功能类型 / Network Function type (default: $DEFAULT_NF_TYPE)
   -a, --app-label <value>   应用标签 / app label (default: nse-\${NF_TYPE}-vpp, current: $APP_LABEL)
   -h, --help                显示帮助 / show help
 
@@ -382,10 +378,10 @@ NSE 通用控制脚本 / NSE Generic Control Script
 NF_TYPE 变量配置 / NF_TYPE Variable Configuration:
 ========================================
 
-NF_TYPE 是核心配置变量,自动推断或手动指定:
-- 自动推断: 从目录名提取 (例如: samenode-firewall -> firewall)
-- 手动指定: 使用 -t|--nf-type 选项
-- 环境变量: export NF_TYPE=nat
+NF_TYPE 是核心配置变量,配置优先级(从高到低):
+1. 命令行参数: 使用 -t|--nf-type 选项 (最高优先级)
+2. 环境变量: export NF_TYPE=nat
+3. 硬编码默认值: DEFAULT_NF_TYPE="$DEFAULT_NF_TYPE" (在脚本中配置)
 
 基于 NF_TYPE 自动生成的派生变量:
 - APP_LABEL        = nse-\${NF_TYPE}-vpp     (当前: $APP_LABEL)
