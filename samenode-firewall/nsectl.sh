@@ -47,6 +47,7 @@ TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
 
 # POD_DISPLAY_NAME: Pod 显示名称 (例如: 防火墙, NAT)
 case "$NF_TYPE" in
+  gateway)   POD_DISPLAY_NAME="网关 / Gateway" ;;
   firewall) POD_DISPLAY_NAME="防火墙 / Firewall" ;;
   nat)      POD_DISPLAY_NAME="NAT" ;;
   vpn)      POD_DISPLAY_NAME="VPN" ;;
@@ -72,6 +73,7 @@ while [[ ${#ARGS[@]} -gt 0 ]]; do
       LOG_FILE_PREFIX="nse-${NF_TYPE}-vpp"
       TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
       case "$NF_TYPE" in
+        gateway)  POD_DISPLAY_NAME="网关 / Gateway" ;;
         firewall) POD_DISPLAY_NAME="防火墙 / Firewall" ;;
         nat)      POD_DISPLAY_NAME="NAT" ;;
         vpn)      POD_DISPLAY_NAME="VPN" ;;

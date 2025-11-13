@@ -60,12 +60,8 @@ kubectl exec deployments/nse-kernel -n ns-nse-composition -- ping -c 4 172.16.1.
 
 ### 5. 防火墙规则测试 / Firewall Rule Test
 
-#### 5.1 测试 TCP 端口 5201（应该允许）/ Test TCP Port 5201 (Should Allow)
-```bash
-kubectl exec pods/alpine -n ns-nse-composition -- wget -O /dev/null --timeout 5 "172.16.1.100:5201"
-```
 
-#### 5.2 测试 TCP 端口 80（应该被阻止）/ Test TCP Port 80 (Should Block)
+#### 5.1 测试 TCP 端口 80（应该被阻止）/ Test TCP Port 80 (Should Block)
 ```bash
 kubectl exec pods/alpine -n ns-nse-composition -- wget -O /dev/null --timeout 5 "172.16.1.100:80"
 if [ 0 -eq $? ]; then
@@ -76,14 +72,14 @@ else
 fi
 ```
 
-#### 5.3 测试 TCP 端口 8080（应该被阻止）/ Test TCP Port 8080 (Should Block)
+#### 5.2 测试 TCP 端口 8080（应该被允许）/ Test TCP Port 8080 (Should Be Allowed)
 ```bash
 kubectl exec pods/alpine -n ns-nse-composition -- wget -O /dev/null --timeout 5 "172.16.1.100:8080"
 if [ 0 -eq $? ]; then
-  echo "错误: 端口 8080 可访问（应该被阻止）/ error: port :8080 is available" >&2
+  echo "成功: 端口 8080 可访问（防火墙规则生效）/ success: port :8080 is available" >&2
   false
 else
-  echo "成功: 端口 8080 不可访问（防火墙规则生效）/ success: port :8080 is blocked"
+  echo "失败: 端口 8080 不可访问（应该被允许）/ error: port :8080 is blocked"
 fi
 ```
 
@@ -106,10 +102,10 @@ kubectl exec -it deployments/nse-kernel -n ns-nse-composition -- iperf3 -s -p 52
 #### 6.3 运行 iperf3 客户端测试 / Run iperf3 Client Test
 ```bash
 # TCP 测试（端口 5201 允许通过防火墙）
-kubectl exec -it pods/alpine -n ns-nse-composition -- iperf3 -c 172.16.1.100 -p 5201 -t 30
+kubectl exec -it pods/alpine -n ns-nse-composition -- iperf3 -c 172.16.1.100 -p 5201 -t 10
 
 # UDP 测试（端口 5201 允许通过防火墙）
-kubectl exec -it pods/alpine -n ns-nse-composition -- iperf3 -c 172.16.1.100 -p 5201 -t 30 -u -b 1G
+kubectl exec -it pods/alpine -n ns-nse-composition -- iperf3 -c 172.16.1.100 -p 5201 -t 10 -u -b 4G
 ```
 
 ## 防火墙配置说明 / Firewall Configuration
@@ -119,7 +115,7 @@ kubectl exec -it pods/alpine -n ns-nse-composition -- iperf3 -c 172.16.1.100 -p 
 - ✅ **TCP 5201**: 允许（iperf3 性能测试）
 - ✅ **UDP 5201**: 允许（iperf3 性能测试）
 - ✅ **ICMP**: 允许（ping 测试）
-- ❌ **TCP 8080**: 禁止
+- ✅ **TCP 8080**: 允许
 - ❌ **TCP 80**: 禁止
 
 修改 `config-file.yaml` 后重新部署即可应用新规则。
