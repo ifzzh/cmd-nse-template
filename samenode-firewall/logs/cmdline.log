@@ -1,17 +1,33 @@
 === 拉取最新代码 / GIT PULL (repo root) ===
 + cd /home/zhengzihao/cmd-nse-template/samenode-firewall/.. && git pull
 From github.com:ifzzh/cmd-nse-template
-   8e18454..baeb654  002-acl-localization -> origin/002-acl-localization
-Updating 8e18454..baeb654
+   edc1bd5..0c820ab  002-acl-localization -> origin/002-acl-localization
+ * [new tag]         v1.0.2               -> v1.0.2
+Updating edc1bd5..0c820ab
 Fast-forward
- go.mod.backup                          |  86 ++++++++
- samenode-firewall/README.md            |  18 +-
- samenode-firewall/config-file.yaml     |   6 +-
- samenode-firewall/logs/nse-nat-vpp.log | 347 ---------------------------------
- samenode-firewall/nsectl.sh            |   2 +
- 5 files changed, 98 insertions(+), 361 deletions(-)
- create mode 100644 go.mod.backup
- delete mode 100644 samenode-firewall/logs/nse-nat-vpp.log
+ README.md                                          |  139 +-
+ VERSION                                            |    2 +-
+ go.mod                                             |    1 +
+ go.mod.backup                                      |   86 -
+ internal/binapi_acl/README.md                      |  151 ++
+ internal/binapi_acl/acl.ba.go                      | 2073 ++++++++++++++++++++
+ internal/binapi_acl/acl_rpc.ba.go                  |  404 ++++
+ internal/binapi_acl/go.mod                         |   13 +
+ internal/binapi_acl/go.sum                         |   16 +
+ main.go.backup                                     |  379 ----
+ samenode-firewall/README.md                        |   30 +
+ samenode-firewall/nse-firewall/firewall.yaml       |    2 +-
+ specs/002-acl-localization/VERSION-TRACEABILITY.md |  187 ++
+ specs/002-acl-localization/tasks.md                |   54 +-
+ 14 files changed, 3031 insertions(+), 506 deletions(-)
+ delete mode 100644 go.mod.backup
+ create mode 100644 internal/binapi_acl/README.md
+ create mode 100644 internal/binapi_acl/acl.ba.go
+ create mode 100644 internal/binapi_acl/acl_rpc.ba.go
+ create mode 100644 internal/binapi_acl/go.mod
+ create mode 100644 internal/binapi_acl/go.sum
+ delete mode 100644 main.go.backup
+ create mode 100644 specs/002-acl-localization/VERSION-TRACEABILITY.md
 
 === 部署应用 / APPLY ===
 ==========================================
@@ -32,21 +48,21 @@ pod/alpine created
 === 等待 Pod 就绪 / WAIT READY (app=nse-firewall-vpp) ===
 等待带有标签 app=nse-firewall-vpp 的 Pod 出现 (超时: 60秒) / Waiting for pods with label app=nse-firewall-vpp to appear (timeout: 60s)...
 找到 1 个 Pod (app=nse-firewall-vpp),等待就绪 (超时: 180秒) / Found 1 pod(s) with app=nse-firewall-vpp. Waiting for Ready (timeout: 180s)...
-pod/nse-firewall-vpp-b76b6c8b9-xwplq condition met
+pod/nse-firewall-vpp-8476594466-4r4gp condition met
 
 当前 Pod 状态 / Current pods:
-NAME                               READY   STATUS     RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
-alpine                             0/2     Init:0/1   0          3s    10.16.0.73   node01   <none>           <none>
-nse-firewall-vpp-b76b6c8b9-xwplq   1/1     Running    0          3s    10.16.0.71   node01   <none>           <none>
-nse-kernel-5d96b8d6d5-4dvb7        2/2     Running    0          3s    10.16.0.72   node01   <none>           <none>
+NAME                                READY   STATUS     RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
+alpine                              0/2     Init:0/1   0          4s    10.16.0.75   node01   <none>           <none>
+nse-firewall-vpp-8476594466-4r4gp   1/1     Running    0          4s    10.16.0.74   node01   <none>           <none>
+nse-kernel-5d96b8d6d5-8xz7s         2/2     Running    0          4s    10.16.0.76   node01   <none>           <none>
 
 === 等待 10 秒 / SLEEP 10s ===
 
 当前 Pod 状态 / Current pods:
-NAME                               READY   STATUS    RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
-alpine                             2/2     Running   0          13s   10.16.0.73   node01   <none>           <none>
-nse-firewall-vpp-b76b6c8b9-xwplq   1/1     Running   0          13s   10.16.0.71   node01   <none>           <none>
-nse-kernel-5d96b8d6d5-4dvb7        2/2     Running   0          13s   10.16.0.72   node01   <none>           <none>
+NAME                                READY   STATUS    RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
+alpine                              2/2     Running   0          15s   10.16.0.75   node01   <none>           <none>
+nse-firewall-vpp-8476594466-4r4gp   1/1     Running   0          15s   10.16.0.74   node01   <none>           <none>
+nse-kernel-5d96b8d6d5-8xz7s         2/2     Running   0          15s   10.16.0.76   node01   <none>           <none>
 
 === 运行功能测试 / RUN TESTS ===
 ==========================================
@@ -61,13 +77,13 @@ Kubernetes 上下文 / Kube context: kubernetes-admin@prod-cluster
 ========================================
 VPP ACL 防火墙功能测试
 命名空间: ns-nse-composition
-时间: 2025-11-13 13:49:32
+时间: 2025-11-13 15:07:43
 ========================================
 
 [1;33m[TEST][0m 测试 1: 检查所有 Pod 就绪状态
 [0;32m[INFO][0m NSC Pod: alpine
-[0;32m[INFO][0m NSE Pod: nse-kernel-5d96b8d6d5-4dvb7
-[0;32m[INFO][0m 防火墙 Pod: nse-firewall-vpp-b76b6c8b9-xwplq
+[0;32m[INFO][0m NSE Pod: nse-kernel-5d96b8d6d5-8xz7s
+[0;32m[INFO][0m 防火墙 Pod: nse-firewall-vpp-8476594466-4r4gp
 [0;32m[INFO][0m ✓ 测试 1 通过: 所有 Pod 已就绪
 
 [1;33m[TEST][0m 测试 2: ICMP 连通性测试 (ping)
@@ -117,7 +133,7 @@ Kubernetes 上下文 / Kube context: kubernetes-admin@prod-cluster
 应用标签 / App label:            app=nse-firewall-vpp
 ==========================================
 保存 alpine 的日志 (容器: cmd-nsc-init) / Saving logs for alpine (container: cmd-nsc-init)
-保存 nse-firewall-vpp-b76b6c8b9-xwplq 的日志 / Saving logs for nse-firewall-vpp-b76b6c8b9-xwplq
+保存 nse-firewall-vpp-8476594466-4r4gp 的日志 / Saving logs for nse-firewall-vpp-8476594466-4r4gp
 日志已写入 / Logs written to /home/zhengzihao/cmd-nse-template/samenode-firewall/logs/
 
 === 查看详情 / DESCRIBE (app=nse-firewall-vpp) ===
@@ -127,61 +143,61 @@ Kubernetes 上下文 / Kube context: kubernetes-admin@prod-cluster
 命名空间 / Namespace:            ns-nse-composition
 应用标签 / App label:            app=nse-firewall-vpp
 ==========================================
-+ kubectl describe pod -n ns-nse-composition nse-firewall-vpp-b76b6c8b9-xwplq 
-Name:             nse-firewall-vpp-b76b6c8b9-xwplq
++ kubectl describe pod -n ns-nse-composition nse-firewall-vpp-8476594466-4r4gp 
+Name:             nse-firewall-vpp-8476594466-4r4gp
 Namespace:        ns-nse-composition
 Priority:         0
 Service Account:  default
 Node:             node01/172.168.1.114
-Start Time:       Thu, 13 Nov 2025 13:49:19 +0800
+Start Time:       Thu, 13 Nov 2025 15:07:28 +0800
 Labels:           app=nse-firewall-vpp
-                  pod-template-hash=b76b6c8b9
+                  pod-template-hash=8476594466
                   spiffe.io/spiffe-id=true
 Annotations:      k8s.v1.cni.cncf.io/network-status:
                     [{
                         "name": "kube-ovn",
                         "interface": "eth0",
                         "ips": [
-                            "10.16.0.71"
+                            "10.16.0.74"
                         ],
-                        "mac": "7e:0c:9b:49:91:54",
+                        "mac": "c6:c1:e1:df:c9:7a",
                         "default": true,
                         "dns": {},
                         "gateway": [
                             "10.16.0.1"
                         ]
                     }]
-                  kubeovn.io/hostVeth-eth0: 9c423f0e589e_h
+                  kubeovn.io/hostVeth-eth0: cd682816f775_h
                   ovn.kubernetes.io/allocated: true
                   ovn.kubernetes.io/cidr: 10.16.0.0/16
                   ovn.kubernetes.io/gateway: 10.16.0.1
-                  ovn.kubernetes.io/ip_address: 10.16.0.71
+                  ovn.kubernetes.io/ip_address: 10.16.0.74
                   ovn.kubernetes.io/logical_router: ovn-cluster
                   ovn.kubernetes.io/logical_switch: ovn-default
-                  ovn.kubernetes.io/mac_address: 7e:0c:9b:49:91:54
+                  ovn.kubernetes.io/mac_address: c6:c1:e1:df:c9:7a
                   ovn.kubernetes.io/pod_nic_type: veth-pair
                   ovn.kubernetes.io/routed: true
 Status:           Running
-IP:               10.16.0.71
+IP:               10.16.0.74
 IPs:
-  IP:           10.16.0.71
-Controlled By:  ReplicaSet/nse-firewall-vpp-b76b6c8b9
+  IP:           10.16.0.74
+Controlled By:  ReplicaSet/nse-firewall-vpp-8476594466
 Containers:
   nse:
-    Container ID:   containerd://930998cde9beb91759fcb1e3c4d506a5b207649e2bb8e4dda05c7caf7a0c5d4d
-    Image:          ifzzh520/vpp-acl-firewall:v1.0.1
+    Container ID:   containerd://d11c321d6dd9ccee0af5a9a5688d484c431d171f9fde1cd94205827051b259ed
+    Image:          ifzzh520/vpp-acl-firewall:v1.0.2
     Image ID:       docker.io/ifzzh520/vpp-acl-firewall@sha256:78551ea8c8c2eb3e302d0f2e17a795be7f1c21792dab63f6beb166d1514fc169
     Port:           <none>
     Host Port:      <none>
     State:          Running
-      Started:      Thu, 13 Nov 2025 13:49:21 +0800
+      Started:      Thu, 13 Nov 2025 15:07:31 +0800
     Ready:          True
     Restart Count:  0
     Environment:
       NSM_SERVICE_NAME:        nse-composition
       NSM_LABELS:              app:firewall
       SPIFFE_ENDPOINT_SOCKET:  unix:///run/spire/sockets/agent.sock
-      POD_NAME:                nse-firewall-vpp-b76b6c8b9-xwplq (v1:metadata.name)
+      POD_NAME:                nse-firewall-vpp-8476594466-4r4gp (v1:metadata.name)
       NSM_NAME:                $(POD_NAME)
       NSM_LOG_LEVEL:           TRACE
       NSM_CONNECT_TO:          unix:///var/lib/networkservicemesh/nsm.io.sock
@@ -189,7 +205,7 @@ Containers:
       /etc/firewall/config.yaml from firewall-config-volume (rw,path="config.yaml")
       /run/spire/sockets from spire-agent-socket (ro)
       /var/lib/networkservicemesh from nsm-socket (ro)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hd6t7 (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-l2h4q (ro)
 Conditions:
   Type              Status
   Initialized       True 
@@ -209,7 +225,7 @@ Volumes:
     Type:          HostPath (bare host directory volume)
     Path:          /var/lib/networkservicemesh
     HostPathType:  DirectoryOrCreate
-  kube-api-access-hd6t7:
+  kube-api-access-l2h4q:
     Type:                    Projected (a volume that contains injected data from multiple sources)
     TokenExpirationSeconds:  3607
     ConfigMapName:           kube-root-ca.crt
@@ -222,12 +238,12 @@ Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists fo
 Events:
   Type    Reason          Age   From               Message
   ----    ------          ----  ----               -------
-  Normal  Scheduled       59s   default-scheduler  Successfully assigned ns-nse-composition/nse-firewall-vpp-b76b6c8b9-xwplq to node01
-  Normal  AddedInterface  58s   multus             Add eth0 [10.16.0.71/16] from kube-ovn
-  Normal  Pulling         58s   kubelet            Pulling image "ifzzh520/vpp-acl-firewall:v1.0.1"
-  Normal  Pulled          57s   kubelet            Successfully pulled image "ifzzh520/vpp-acl-firewall:v1.0.1" in 1.093s (1.093s including waiting)
-  Normal  Created         57s   kubelet            Created container nse
-  Normal  Started         57s   kubelet            Started container nse
+  Normal  Scheduled       41s   default-scheduler  Successfully assigned ns-nse-composition/nse-firewall-vpp-8476594466-4r4gp to node01
+  Normal  AddedInterface  40s   multus             Add eth0 [10.16.0.74/16] from kube-ovn
+  Normal  Pulling         40s   kubelet            Pulling image "ifzzh520/vpp-acl-firewall:v1.0.2"
+  Normal  Pulled          38s   kubelet            Successfully pulled image "ifzzh520/vpp-acl-firewall:v1.0.2" in 2.192s (2.192s including waiting)
+  Normal  Created         38s   kubelet            Created container nse
+  Normal  Started         38s   kubelet            Started container nse
 
 === 提交并推送日志 / GIT COMMIT & PUSH LOGS (repo root) ===
 + cd /home/zhengzihao/cmd-nse-template/samenode-firewall/.. && git add .
