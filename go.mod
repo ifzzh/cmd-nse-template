@@ -87,3 +87,4 @@ require (
 
 // ACL 模块本地化 replace 指令
 replace github.com/networkservicemesh/govpp/binapi/acl_types => ./internal/binapi_acl_types
+replace github.com/networkservicemesh/govpp/binapi/acl => ./internal/binapi_acl
