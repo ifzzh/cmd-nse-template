@@ -771,11 +771,15 @@ Copyright © 2024 OpenInfra Foundation Europe. All rights reserved.
 
 ## 🔄 版本历史 / Version History
 
-### v1.0.1 (2025-11-13) - ACL 模块本地化
+### v1.0.1 (2025-11-13) - ACL 模块本地化 + 测试框架
 - ✅ 本地化 `govpp/binapi/acl_types` 模块到 `internal/binapi_acl_types/`
 - ✅ 添加 go.mod replace 指令,减少外部依赖
 - ✅ 添加模块来源文档和升级指南
 - ✅ 更新 Kubernetes 部署配置使用新镜像
+- ✅ 创建防火墙测试框架 (`firewall-test.sh`, 6个测试用例)
+- ✅ 重构 `nsectl.sh` 为基于 NF_TYPE 的通用控制脚本
+- ✅ 添加测试文档 ([TESTING.md](samenode-firewall/TESTING.md))
+- ✅ **验证完成** (2025-11-13): 全流程测试通过,日志已收集到 `samenode-firewall/logs/`
 
 ### v1.0.0 (2025-01-12) - 初始版本
 - ✅ 本地化 `sdk-vpp/pkg/networkservice/...` ACL 模块到 `internal/acl/`

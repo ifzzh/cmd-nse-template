@@ -174,3 +174,33 @@ kubectl get pod -n spire
 # 查看 SPIRE Agent 日志
 kubectl logs -n spire daemonset/spire-agent
 ```
+
+## 验证状态 / Verification Status
+
+### ✅ 最新验证 (2025-11-13)
+
+**验证环境**:
+- Kubernetes 集群: `kubernetes-admin@kubernetes`
+- 命名空间: `ns-nse-composition`
+- 镜像版本: `ifzzh520/vpp-acl-firewall:v1.0.1`
+
+**验证方法**:
+```bash
+cd samenode-firewall
+./nsectl.sh full  # 完整流程: 部署 -> 测试 -> 收集日志 -> 推送
+```
+
+**测试结果**:
+- ✅ 测试 1: Pod 就绪检查 - **通过**
+- ✅ 测试 2: ICMP 连通性 (ping) - **通过**
+- ✅ 测试 3: VPP ACL 规则验证 - **通过**
+- ✅ 测试 4: 防火墙 TCP 端口过滤 - **通过** (80阻止, 8080允许)
+- ✅ 测试 5: iperf3 性能测试 - **通过**
+- ✅ 测试 6: SPIRE 身份验证 - **通过**
+
+**日志文件**:
+- [logs/cmdline.log](logs/cmdline.log) - 完整命令行输出
+- [logs/cmd-nsc-init.log](logs/cmd-nsc-init.log) - NSC 初始化日志
+- [logs/nse-firewall-vpp.log](logs/nse-firewall-vpp.log) - 防火墙服务日志
+
+**详细测试报告**: 参见 [TESTING.md](TESTING.md)
