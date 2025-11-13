@@ -292,6 +292,103 @@ ifzzh520/vpp-acl-firewall       debug     580MB
 
 ---
 
+## 🔧 模块本地化与依赖管理 / Module Localization & Dependency Management
+
+### 为什么使用 Go replace 指令 / Why Use Go replace Directive
+
+本项目将外部依赖模块 **本地化** 到 `internal/` 目录,通过 Go 的 `replace` 指令实现无缝替换。这种方式带来多重优势:
+
+#### ✅ **核心优势**
+
+1. **减少外部依赖**: 避免网络访问失败、代理问题、上游仓库删除等风险
+2. **构建稳定性**: 本地模块不受 Go 模块代理 (proxy.golang.org) 可用性影响
+3. **类型一致性**: 确保所有包(包括第三方依赖)使用同一份类型定义,避免类型冲突
+4. **代码改动最小**: 业务代码保持原始导入路径,无需修改
+5. **可维护性强**: 集中管理本地化模块,升级时仅需更新对应目录
+
+#### 📂 **本地化模块清单**
+
+| 本地模块 | 原始来源 | 版本/哈希 | 说明 |
+|---------|---------|----------|------|
+| `internal/binapi_acl_types/` | `github.com/networkservicemesh/govpp/binapi/acl_types` | `8a444680fbba` | VPP ACL 类型定义 |
+| `internal/acl/` | `github.com/networkservicemesh/sdk-vpp/pkg/networkservice/...` | 自研模块 | ACL 防火墙核心逻辑 |
+
+#### 🔄 **replace 指令工作原理**
+
+**项目 go.mod 配置:**
+```go
+module github.com/ifzzh/cmd-nse-template
+
+require (
+    github.com/networkservicemesh/govpp v0.0.0-20240328101142-8a444680fbba
+    // ...其他依赖
+)
+
+// ACL 模块本地化 replace 指令
+replace github.com/networkservicemesh/govpp/binapi/acl_types => ./internal/binapi_acl_types
+```
+
+**效果:**
+- ✅ 业务代码中保持 `import "github.com/networkservicemesh/govpp/binapi/acl_types"`
+- ✅ 编译时自动重定向到 `./internal/binapi_acl_types`
+- ✅ 第三方依赖(如 `sdk-vpp`)引用同一路径时,也会指向本地模块
+- ✅ 类型系统识别为同一个包,避免类型不兼容错误
+
+#### 🆚 **替代方案对比**
+
+**方案 A: 直接修改导入路径** (❌ 不推荐)
+```go
+// 需修改所有文件
+- import "github.com/networkservicemesh/govpp/binapi/acl_types"
++ import "github.com/ifzzh/cmd-nse-template/internal/binapi_acl_types"
+```
+
+**缺点:**
+- ❌ 代码改动大 (需修改多个文件)
+- ❌ 第三方依赖冲突 (sdk-vpp 仍引用原路径,导致类型不匹配)
+- ❌ 升级困难 (需同步修改所有导入语句)
+
+**方案 B: 使用 replace 指令** (✅ 当前方案,推荐)
+- ✅ 代码改动最小 (仅修改 go.mod)
+- ✅ 类型一致性保证
+- ✅ 第三方依赖兼容
+- ✅ 升级友好
+
+#### �� **升级本地化模块**
+
+当上游模块更新时,按以下步骤升级:
+
+```bash
+# 1. 下载新版本到缓存
+go mod download github.com/networkservicemesh/govpp@<new-version>
+
+# 2. 定位缓存路径
+CACHE_PATH=$(go env GOPATH)/pkg/mod/github.com/networkservicemesh/govpp@<new-version>
+
+# 3. 备份当前本地模块
+cp -r internal/binapi_acl_types internal/binapi_acl_types.bak
+
+# 4. 复制新版本代码
+cp -r $CACHE_PATH/binapi/acl_types/* internal/binapi_acl_types/
+chmod -R u+w internal/binapi_acl_types/
+
+# 5. 更新模块文档
+# 编辑 internal/binapi_acl_types/README.md,记录新版本信息
+
+# 6. 验证编译
+go build ./...
+
+# 7. 运行测试
+go test ./...
+```
+
+#### 📖 **相关文档**
+
+- [internal/binapi_acl_types/README.md](internal/binapi_acl_types/README.md) - ACL 类型模块来源与升级指南
+- [go.mod](go.mod) - 查看完整的 replace 指令配置
+
+---
+
 ## ⚙️ 配置说明 / Configuration
 
 ### 环境变量配置 / Environment Variables
