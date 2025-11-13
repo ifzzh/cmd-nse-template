@@ -16,38 +16,38 @@
 
 #### 前置准备
 
-- [ ] [T001] [US1] 验证前置条件：检查 Go 版本 (1.23.8+)、Docker 可用性、Git 状态干净，确认 go.sum 中 govpp 版本为 v0.0.0-20240328101142-8a444680fbba - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/go.sum`
-- [ ] [T002] [US1] 确认基线镜像存在：拉取 ifzzh520/vpp-acl-firewall:v1.0.0 - Docker 镜像仓库
+- [X] [T001] [US1] 验证前置条件：检查 Go 版本 (1.23.8+)、Docker 可用性、Git 状态干净，确认 go.sum 中 govpp 版本为 v0.0.0-20240328101142-8a444680fbba - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/go.sum`
+- [X] [T002] [US1] 确认基线镜像存在：拉取 ifzzh520/vpp-acl-firewall:v1.0.0 - Docker 镜像仓库
 
 #### 模块下载与复制
 
-- [ ] [T003] [US1] 下载 govpp 模块到缓存：执行 `go mod download github.com/networkservicemesh/govpp` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T004] [US1] 定位并验证缓存目录：查找 `$GOPATH/pkg/mod/github.com/networkservicemesh/govpp@v0.0.0-20240328101142-8a444680fbba/binapi/acl_types/` - Go 模块缓存
-- [ ] [T005] [US1] 创建本地模块目录：`mkdir -p internal/binapi_acl_types` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal`
-- [ ] [T006] [US1] 复制源码文件：从缓存复制 `binapi/acl_types/*` 到 `internal/binapi_acl_types/` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types`
-- [ ] [T007] [US1] 取消只读权限：`chmod -R u+w internal/binapi_acl_types/` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types`
+- [X] [T003] [US1] 下载 govpp 模块到缓存：执行 `go mod download github.com/networkservicemesh/govpp` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T004] [US1] 定位并验证缓存目录：查找 `$GOPATH/pkg/mod/github.com/networkservicemesh/govpp@v0.0.0-20240328101142-8a444680fbba/binapi/acl_types/` - Go 模块缓存
+- [X] [T005] [US1] 创建本地模块目录：`mkdir -p internal/binapi_acl_types` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal`
+- [X] [T006] [US1] 复制源码文件：从缓存复制 `binapi/acl_types/*` 到 `internal/binapi_acl_types/` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types`
+- [X] [T007] [US1] 取消只读权限：`chmod -R u+w internal/binapi_acl_types/` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types`
 
 #### 模块配置
 
-- [ ] [T008] [US1] 创建 go.mod 文件：声明模块 `github.com/ifzzh/cmd-nse-template/internal/binapi_acl_types`，依赖 `go.fd.io/govpp v0.11.0` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types/go.mod`
-- [ ] [T009] [US1] 执行 go mod tidy：自动补全依赖并生成 go.sum - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types`
-- [ ] [T010] [US1] 添加包级别中文注释：在 `acl_types.ba.go` 开头添加中文文档注释，说明模块来源、版本哈希和注意事项 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types/acl_types.ba.go`
-- [ ] [T011] [US1] 创建 README.md：记录模块来源信息（仓库、版本、哈希、本地化日期）、文件清单、依赖关系、修改说明和升级指南 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types/README.md`
+- [X] [T008] [US1] 创建 go.mod 文件：声明模块 `github.com/ifzzh/cmd-nse-template/internal/binapi_acl_types`，依赖 `go.fd.io/govpp v0.11.0` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types/go.mod`
+- [X] [T009] [US1] 执行 go mod tidy：自动补全依赖并生成 go.sum - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types`
+- [X] [T010] [US1] 添加包级别中文注释：在 `acl_types.ba.go` 开头添加中文文档注释，说明模块来源、版本哈希和注意事项 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types/acl_types.ba.go`
+- [X] [T011] [US1] 创建 README.md：记录模块来源信息（仓库、版本、哈希、本地化日期）、文件清单、依赖关系、修改说明和升级指南 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/internal/binapi_acl_types/README.md`
 
 #### 项目集成
 
-- [ ] [T012] [US1] 备份项目 go.mod：`cp go.mod go.mod.backup` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T013] [US1] 修改项目 go.mod：在末尾添加 replace 指令 `replace github.com/networkservicemesh/govpp/binapi/acl_types => ./internal/binapi_acl_types` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/go.mod`
+- [X] [T012] [US1] 备份项目 go.mod：`cp go.mod go.mod.backup` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T013] [US1] 修改项目 go.mod：在末尾添加 replace 指令 `replace github.com/networkservicemesh/govpp/binapi/acl_types => ./internal/binapi_acl_types` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/go.mod`
 
 #### 本地验证
 
-- [ ] [T014] [US1] 验证 replace 生效：`go list -m github.com/networkservicemesh/govpp/binapi/acl_types`，期望输出包含 `=> ./internal/binapi_acl_types` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T015] [US1] 编译项目：`go build ./...`，确保编译成功无错误 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T016] [US1] 运行单元测试（如存在）：`go test ./...`，记录测试结果 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T014] [US1] 验证 replace 生效：`go list -m github.com/networkservicemesh/govpp/binapi/acl_types`，期望输出包含 `=> ./internal/binapi_acl_types` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T015] [US1] 编译项目：`go build ./...`，确保编译成功无错误 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T016] [US1] 运行单元测试（如存在）：`go test ./...`，记录测试结果 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
 
 #### 版本控制与镜像构建
 
-- [ ] [T017] [US1] 创建 VERSION 文件：写入 "v1.0.1" - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/VERSION`
+- [X] [T017] [US1] 创建 VERSION 文件：写入 "v1.0.1" - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/VERSION`
 - [ ] [T018] [US1] Git 提交本地化代码：添加 `internal/binapi_acl_types/`、`go.mod`、`go.sum`、`VERSION`，提交信息包含模块名称、来源、版本哈希和目标镜像版本 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
 - [ ] [T019] [US1] 构建 Docker 镜像：`docker build -t ifzzh520/vpp-acl-firewall:v1.0.1 -t ifzzh520/vpp-acl-firewall:latest .` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
 - [ ] [T020] [US1] 验证镜像构建成功：`docker images | grep vpp-acl-firewall`，确认 v1.0.1 标签存在 - Docker
