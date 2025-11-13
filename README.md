@@ -88,8 +88,8 @@ kubectl exec -n ns-nse-composition deploy/nse-firewall-vpp -- vppctl show acl-pl
 git clone git@github.com:ifzzh/cmd-nse-template.git
 cd cmd-nse-template
 
-# 切换到开发分支（包含最新的重构和优化）
-git checkout 001-refactor-structure
+# 切换到最新开发分支（包含 ACL 模块本地化）
+git checkout 002-acl-localization
 
 # 查看分支状态
 git status
@@ -104,12 +104,12 @@ cd /path/to/cmd-nse-template
 # 获取远程最新分支信息
 git fetch origin
 
-# 切换到远程分支
-git checkout -b 001-refactor-structure origin/001-refactor-structure
+# 切换到远程分支（ACL 模块本地化）
+git checkout -b 002-acl-localization origin/002-acl-localization
 
 # 或者，如果本地已有该分支，拉取最新更新
-git checkout 001-refactor-structure
-git pull origin 001-refactor-structure
+git checkout 002-acl-localization
+git pull origin 002-acl-localization
 ```
 
 #### 方法 3: 使用 HTTPS（无需 SSH 密钥）/ Using HTTPS (No SSH Key Required)
@@ -119,8 +119,8 @@ git pull origin 001-refactor-structure
 git clone https://github.com/ifzzh/cmd-nse-template.git
 cd cmd-nse-template
 
-# 切换到开发分支
-git checkout 001-refactor-structure
+# 切换到最新开发分支（ACL 模块本地化）
+git checkout 002-acl-localization
 ```
 
 ### 验证拉取成功 / Verify Pull Success
@@ -132,18 +132,20 @@ git branch
 # 查看最新提交
 git log --oneline -5
 
-# 验证文件结构
-ls -la internal/acl/
+# 验证 ACL 模块本地化文件结构
+ls -la internal/binapi_acl_types/
 ```
 
 应该看到以下输出：
 ```
-* 001-refactor-structure
+* 002-acl-localization
   main
 
-internal/acl/
-├── common.go   (185 行，包含中文注释)
-└── server.go   (168 行，包含中文注释)
+internal/binapi_acl_types/
+├── acl_types.ba.go  (VPP ACL 类型绑定，自动生成)
+├── go.mod           (模块依赖声明)
+├── go.sum           (依赖校验和)
+└── README.md        (模块来源和升级指南)
 ```
 
 ### 远程环境快速部署 / Quick Deployment in Remote Environment
@@ -210,8 +212,8 @@ git fetch origin --prune
 # 查看所有远程分支
 git branch -r
 
-# 重新拉取
-git checkout -b 001-refactor-structure origin/001-refactor-structure
+# 重新拉取最新开发分支
+git checkout -b 002-acl-localization origin/002-acl-localization
 ```
 
 #### 问题 3: Kubernetes 镜像拉取失败 "ImagePullBackOff"
@@ -699,7 +701,9 @@ Closes #123"
 7. **同步上游** / Sync with upstream
    ```bash
    git fetch upstream
-   git rebase upstream/001-refactor-structure
+   # 根据你的功能选择对应的基准分支
+   git rebase upstream/002-acl-localization  # ACL 模块相关功能
+   # 或 git rebase upstream/001-refactor-structure  # 代码重构相关功能
    ```
 
 8. **推送到 Fork** / Push to your fork
