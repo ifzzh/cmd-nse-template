@@ -48,15 +48,15 @@
 #### 版本控制与镜像构建
 
 - [X] [T017] [US1] 创建 VERSION 文件：写入 "v1.0.1" - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp/VERSION`
-- [ ] [T018] [US1] Git 提交本地化代码：添加 `internal/binapi_acl_types/`、`go.mod`、`go.sum`、`VERSION`，提交信息包含模块名称、来源、版本哈希和目标镜像版本 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T019] [US1] 构建 Docker 镜像：`docker build -t ifzzh520/vpp-acl-firewall:v1.0.1 -t ifzzh520/vpp-acl-firewall:latest .` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T020] [US1] 验证镜像构建成功：`docker images | grep vpp-acl-firewall`，确认 v1.0.1 标签存在 - Docker
+- [X] [T018] [US1] Git 提交本地化代码：添加 `internal/binapi_acl_types/`、`go.mod`、`go.sum`、`VERSION`，提交信息包含模块名称、来源、版本哈希和目标镜像版本 - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T019] [US1] 构建 Docker 镜像：`docker build -t ifzzh520/vpp-acl-firewall:v1.0.1 -t ifzzh520/vpp-acl-firewall:latest .` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T020] [US1] 验证镜像构建成功：`docker images | grep vpp-acl-firewall`，确认 v1.0.1 标签存在 - Docker
 
 #### 推送与标记
 
-- [ ] [T021] [US1] 推送镜像到仓库：`docker push ifzzh520/vpp-acl-firewall:v1.0.1` 和 `docker push ifzzh520/vpp-acl-firewall:latest` - Docker 镜像仓库
-- [ ] [T022] [US1] 打 Git tag：`git tag v1.0.1 -m "ACL 模块本地化迭代 1: binapi/acl_types"` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
-- [ ] [T023] [US1] 推送代码和标签：`git push origin v1.0.1 && git push origin HEAD` - Git 远程仓库
+- [X] [T021] [US1] 推送镜像到仓库：`docker push ifzzh520/vpp-acl-firewall:v1.0.1` 和 `docker push ifzzh520/vpp-acl-firewall:latest` - Docker 镜像仓库
+- [X] [T022] [US1] 打 Git tag：`git tag v1.0.1 -m "ACL 模块本地化迭代 1: binapi/acl_types"` - `/home/ifzzh/Project/NSE-Frame/cmd-nse-firewall-vpp`
+- [X] [T023] [US1] 推送代码和标签：`git push origin v1.0.1 && git push origin HEAD` - Git 远程仓库
 
 ---
 
