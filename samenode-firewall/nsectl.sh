@@ -36,7 +36,7 @@ while [[ ${#ARGS[@]} -gt 0 ]]; do
       APP_LABEL="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2}) ;;
     -h|--help)
       ACTION="help"; ARGS=(${ARGS[@]:1}); break ;;
-    apply|get|watch|logs|describe|delete|full|help)
+    apply|get|watch|logs|describe|delete|test|full|help)
       ACTION="${ARGS[0]}"; ARGS=(${ARGS[@]:1}); break ;;
     *)
       echo "Unknown option or action: ${ARGS[0]}" >&2
@@ -159,6 +159,35 @@ wait_for_app_pods_ready() {
   fi
 }
 
+# 动态调用 NSE 特定的测试脚本
+# 自动查找与当前目录名称匹配的测试脚本 (例如: firewall-test.sh)
+cmd_test() {
+  print_context
+  local SD
+  SD="$(script_dir)"
+
+  # 从目录名提取 NSE 类型 (例如: samenode-firewall -> firewall)
+  local dir_name
+  dir_name=$(basename "$SD")
+  local nse_type="${dir_name##*-}"  # 提取最后一个 - 后面的部分
+
+  # 构建测试脚本路径
+  local test_script="$SD/${nse_type}-test.sh"
+
+  if [[ -f "$test_script" && -x "$test_script" ]]; then
+    echo "运行 NSE 特定测试脚本: $test_script"
+    echo "测试命名空间: $NAMESPACE"
+    echo ""
+    "$test_script" "$NAMESPACE"
+  else
+    echo "未找到测试脚本: $test_script" >&2
+    echo "请创建可执行的测试脚本,例如:" >&2
+    echo "  touch $test_script" >&2
+    echo "  chmod +x $test_script" >&2
+    exit 1
+  fi
+}
+
 cmd_full() {
   ensure_logs_dir
   local SD
@@ -197,6 +226,10 @@ cmd_full() {
 
     echo "Current pods:"
     kubectl get pod -n "$NAMESPACE" -o wide || true
+    echo
+
+    echo "=== RUN TESTS ==="
+    cmd_test || echo "WARN: Tests failed or not available" >&2
     echo
 
     echo "=== COLLECT LOGS ==="
@@ -254,15 +287,16 @@ cmd_delete() {
 
 cmd_help() {
   cat <<'EOF'
-Usage: natctl.sh [options] <action>
+Usage: nsectl.sh [options] <action>
 
 Actions:
   apply        kubectl apply -k <dir> (default: .)
   get          kubectl get pods in namespace
   watch        watch kubectl get pods (requires 'watch'; falls back otherwise)
-  logs         collect logs to ./logs/cmd-nsc-init.log and ./logs/nse-nat-vpp.log
-  describe     describe the nse-nat-vpp pod
-  full         run: apply -> wait Ready (app=$APP_LABEL) -> sleep 10s -> logs -> describe
+  logs         collect logs to ./logs/cmd-nsc-init.log and ./logs/nse-firewall-vpp.log
+  describe     describe the nse-firewall-vpp pod
+  test         run NSE-specific tests (dynamically calls <nse-type>-test.sh)
+  full         run: apply -> wait Ready -> sleep 10s -> test -> logs -> describe -> git push
   delete       delete the namespace
   help         show this message
 
@@ -270,17 +304,23 @@ Options:
   -n, --namespace <ns>      namespace (default: ns-nse-composition)
   -k, --kustomize <dir>     kustomize dir for apply (default: .)
   -w, --watch-interval <n>  watch refresh interval seconds (default: 2)
-  -a, --app-label <value>   value for 'app' label to target (default: nse-nat-vpp)
+  -a, --app-label <value>   value for 'app' label to target (default: nse-firewall-vpp)
   -h, --help                show help
 
 Examples:
-  ./natctl.sh apply
-  ./natctl.sh watch
-  ./natctl.sh get
-  ./natctl.sh logs
-  ./natctl.sh describe
-  ./natctl.sh full
-  ./natctl.sh delete
+  ./nsectl.sh apply
+  ./nsectl.sh watch
+  ./nsectl.sh get
+  ./nsectl.sh test
+  ./nsectl.sh logs
+  ./nsectl.sh describe
+  ./nsectl.sh full
+  ./nsectl.sh delete
+
+Test Script Convention:
+  The 'test' action automatically looks for and executes: <nse-type>-test.sh
+  For example, in directory 'samenode-firewall', it will run: firewall-test.sh
+  This allows different NSE types to have their own test scripts.
 EOF
 }
 
@@ -290,6 +330,7 @@ case "$ACTION" in
   watch)    cmd_watch ;;
   logs)     cmd_logs ;;
   describe) cmd_describe ;;
+  test)     cmd_test ;;
   full)     cmd_full ;;
   delete)   cmd_delete ;;
   help|*)   cmd_help ;;
