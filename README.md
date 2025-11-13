@@ -40,7 +40,8 @@ A high-performance ACL firewall Network Service Endpoint based on VPP (Vector Pa
 - 📊 **OpenTelemetry 可观测性**: 内置 metrics 和 traces 支持
 - 🚀 **云原生部署**: Kubernetes 原生部署，支持 Helm 和 Kustomize
 - 🔧 **OPA 策略引擎**: 灵活的访问控制策略
-- 📦 **容器化**: Docker 镜像 `ifzzh520/vpp-acl-firewall:v1.0.0`
+- 📦 **容器化**: Docker 镜像 `ifzzh520/vpp-acl-firewall:v1.0.1`
+- 🔧 **模块本地化**: ACL 模块本地化，减少外部依赖，提升构建稳定性
 
 ### 性能优势
 - ⚡ **高吞吐量**: 基于 VPP 的用户态数据平面，线速转发
@@ -153,7 +154,7 @@ internal/acl/
 # 1. 进入测试目录
 cd cmd-nse-template/samenode-firewall/
 
-# 2. 确认镜像配置（已自动配置为 ifzzh520/vpp-acl-firewall:v1.0.0）
+# 2. 确认镜像配置（已自动配置为 ifzzh520/vpp-acl-firewall:v1.0.1）
 grep "image:" nse-firewall/firewall.yaml
 
 # 3. 部署到 Kubernetes
@@ -167,14 +168,14 @@ watch kubectl get pod -n ns-nse-composition -o wide
 
 ```bash
 # 1. 构建 Docker 镜像
-docker build -t ifzzh520/vpp-acl-firewall:v1.0.0 .
+docker build -t ifzzh520/vpp-acl-firewall:v1.0.1 .
 
 # 2. 推送到私有仓库（可选）
-docker tag ifzzh520/vpp-acl-firewall:v1.0.0 your-registry/vpp-acl-firewall:v1.0.0
-docker push your-registry/vpp-acl-firewall:v1.0.0
+docker tag ifzzh520/vpp-acl-firewall:v1.0.1 your-registry/vpp-acl-firewall:v1.0.1
+docker push your-registry/vpp-acl-firewall:v1.0.1
 
 # 3. 更新 Kubernetes 配置
-sed -i 's|ifzzh520/vpp-acl-firewall:v1.0.0|your-registry/vpp-acl-firewall:v1.0.0|g' \
+sed -i 's|ifzzh520/vpp-acl-firewall:v1.0.1|your-registry/vpp-acl-firewall:v1.0.1|g' \
   samenode-firewall/nse-firewall/firewall.yaml
 
 # 4. 部署
@@ -220,7 +221,7 @@ git checkout -b 001-refactor-structure origin/001-refactor-structure
 **解决方案**:
 ```bash
 # 方法 1: 验证镜像存在
-docker pull ifzzh520/vpp-acl-firewall:v1.0.0
+docker pull ifzzh520/vpp-acl-firewall:v1.0.1
 
 # 方法 2: 配置镜像拉取策略
 kubectl edit deployment nse-firewall-vpp -n ns-nse-composition
@@ -255,7 +256,7 @@ go build -o bin/cmd-nse-firewall-vpp .
 
 ```bash
 # 构建生产镜像（多阶段构建，体积最小）
-docker build --target runtime -t ifzzh520/vpp-acl-firewall:v1.0.0 .
+docker build --target runtime -t ifzzh520/vpp-acl-firewall:v1.0.1 .
 
 # 构建测试镜像
 docker build --target test -t ifzzh520/vpp-acl-firewall:test .
@@ -270,7 +271,7 @@ docker images ifzzh520/vpp-acl-firewall
 **输出示例**:
 ```
 REPOSITORY                      TAG       SIZE
-ifzzh520/vpp-acl-firewall       v1.0.0    235MB
+ifzzh520/vpp-acl-firewall       v1.0.1    235MB
 ifzzh520/vpp-acl-firewall       test      520MB
 ifzzh520/vpp-acl-firewall       debug     580MB
 ```
@@ -519,9 +520,14 @@ cmd-nse-firewall-vpp/
 ├── go.sum                           # 依赖哈希锁定
 │
 ├── internal/                        # 内部模块（本地化）
-│   ├── acl/                         # ACL 防火墙模块
+│   ├── acl/                         # ACL 防火墙模块（sdk-vpp 本地化）
 │   │   ├── common.go                # 公共函数（185 行，+69 注释）
 │   │   └── server.go                # 服务器实现（168 行，+75 注释）
+│   ├── binapi_acl_types/            # VPP ACL 类型绑定（govpp 本地化）
+│   │   ├── acl_types.ba.go          # ACL 类型定义（自动生成）
+│   │   ├── go.mod                   # 模块依赖声明
+│   │   ├── go.sum                   # 依赖校验和
+│   │   └── README.md                # 模块来源和升级指南
 │   ├── config/                      # 配置管理模块
 │   │   └── config.go                # 配置加载（104 行）
 │   ├── registry/                    # 注册中心模块
@@ -541,12 +547,16 @@ cmd-nse-firewall-vpp/
 │   └── ...                          # 其他测试资源
 │
 ├── specs/                           # 设计规范和计划
-│   └── 001-refactor-structure/      # 重构规范
-│       ├── spec.md                  # 功能规范
-│       ├── plan.md                  # 实施计划
-│       ├── tasks.md                 # 任务清单
-│       ├── REFACTOR_SUMMARY.md      # 重构总结
-│       └── NF-IMPLEMENTATIONS.md    # 网络功能实现分析（1241 行）
+│   ├── 001-refactor-structure/      # 重构规范
+│   │   ├── spec.md                  # 功能规范
+│   │   ├── plan.md                  # 实施计划
+│   │   ├── tasks.md                 # 任务清单
+│   │   ├── REFACTOR_SUMMARY.md      # 重构总结
+│   │   └── NF-IMPLEMENTATIONS.md    # 网络功能实现分析（1241 行）
+│   └── 002-acl-localization/        # ACL 模块本地化规范
+│       ├── spec.md                  # 模块本地化需求
+│       ├── plan.md                  # 本地化实施计划
+│       └── tasks.md                 # 本地化任务清单
 │
 └── README.md                        # 本文件
 ```
@@ -604,12 +614,13 @@ cmd-nse-firewall-vpp/
 
 ### 分支策略 / Branch Strategy
 
-| 分支名 | 用途 | 合并目标 |
-|--------|------|---------|
-| `main` | 主分支（稳定版本） | - |
-| `001-refactor-structure` | 重构分支（开发中） | `main` |
-| `feature/*` | 功能开发分支 | `001-refactor-structure` |
-| `bugfix/*` | 缺陷修复分支 | `main` 或对应开发分支 |
+| 分支名 | 用途 | 合并目标 | 当前版本 |
+|--------|------|---------|---------|
+| `main` | 主分支（稳定版本） | - | - |
+| `001-refactor-structure` | 代码重构与优化 | `main` | v1.0.0 |
+| `002-acl-localization` | ACL 模块本地化 | `main` | v1.0.1 |
+| `feature/*` | 功能开发分支 | 对应开发分支 | - |
+| `bugfix/*` | 缺陷修复分支 | `main` 或对应开发分支 | - |
 
 ### 提交规范 / Commit Convention
 
@@ -698,7 +709,7 @@ Closes #123"
 
 9. **创建 Pull Request** / Create Pull Request
    - 在 GitHub 上创建 PR
-   - 目标分支: `001-refactor-structure`
+   - 目标分支: 根据功能类型选择 `001-refactor-structure` 或 `002-acl-localization`
    - 填写 PR 模板，说明更改内容
 
 ### 代码审查清单 / Code Review Checklist
@@ -750,6 +761,21 @@ Copyright © 2024 OpenInfra Foundation Europe. All rights reserved.
 
 ---
 
-**最后更新**: 2025-01-12
-**版本**: v1.0.0
+**最后更新**: 2025-11-13
+**版本**: v1.0.1
 **维护者**: [@ifzzh](https://github.com/ifzzh)
+
+## 🔄 版本历史 / Version History
+
+### v1.0.1 (2025-11-13) - ACL 模块本地化
+- ✅ 本地化 `govpp/binapi/acl_types` 模块到 `internal/binapi_acl_types/`
+- ✅ 添加 go.mod replace 指令,减少外部依赖
+- ✅ 添加模块来源文档和升级指南
+- ✅ 更新 Kubernetes 部署配置使用新镜像
+
+### v1.0.0 (2025-01-12) - 初始版本
+- ✅ 本地化 `sdk-vpp/pkg/networkservice/...` ACL 模块到 `internal/acl/`
+- ✅ 重构主程序代码结构
+- ✅ 添加中文注释和文档
+- ✅ Docker 多阶段构建优化
+- ✅ Kubernetes 测试部署配置
