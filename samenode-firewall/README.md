@@ -182,7 +182,7 @@ kubectl logs -n spire daemonset/spire-agent
 **验证环境**:
 - Kubernetes 集群: `kubernetes-admin@kubernetes`
 - 命名空间: `ns-nse-composition`
-- 镜像版本: `ifzzh520/vpp-acl-firewall:v1.0.1`
+- 镜像版本: `ifzzh520/vpp-acl-firewall:v1.0.2`
 
 **验证方法**:
 ```bash

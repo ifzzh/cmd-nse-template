@@ -40,7 +40,7 @@ A high-performance ACL firewall Network Service Endpoint based on VPP (Vector Pa
 - 📊 **OpenTelemetry 可观测性**: 内置 metrics 和 traces 支持
 - 🚀 **云原生部署**: Kubernetes 原生部署，支持 Helm 和 Kustomize
 - 🔧 **OPA 策略引擎**: 灵活的访问控制策略
-- 📦 **容器化**: Docker 镜像 `ifzzh520/vpp-acl-firewall:v1.0.1`
+- 📦 **容器化**: Docker 镜像 `ifzzh520/vpp-acl-firewall:v1.0.2`
 - 🔧 **模块本地化**: ACL 模块本地化，减少外部依赖，提升构建稳定性
 
 ### 性能优势
@@ -156,7 +156,7 @@ internal/binapi_acl_types/
 # 1. 进入测试目录
 cd cmd-nse-template/samenode-firewall/
 
-# 2. 确认镜像配置（已自动配置为 ifzzh520/vpp-acl-firewall:v1.0.1）
+# 2. 确认镜像配置（已自动配置为 ifzzh520/vpp-acl-firewall:v1.0.2）
 grep "image:" nse-firewall/firewall.yaml
 
 # 3. 部署到 Kubernetes
@@ -170,14 +170,14 @@ watch kubectl get pod -n ns-nse-composition -o wide
 
 ```bash
 # 1. 构建 Docker 镜像
-docker build -t ifzzh520/vpp-acl-firewall:v1.0.1 .
+docker build -t ifzzh520/vpp-acl-firewall:v1.0.2 .
 
 # 2. 推送到私有仓库（可选）
-docker tag ifzzh520/vpp-acl-firewall:v1.0.1 your-registry/vpp-acl-firewall:v1.0.1
-docker push your-registry/vpp-acl-firewall:v1.0.1
+docker tag ifzzh520/vpp-acl-firewall:v1.0.2 your-registry/vpp-acl-firewall:v1.0.2
+docker push your-registry/vpp-acl-firewall:v1.0.2
 
 # 3. 更新 Kubernetes 配置
-sed -i 's|ifzzh520/vpp-acl-firewall:v1.0.1|your-registry/vpp-acl-firewall:v1.0.1|g' \
+sed -i 's|ifzzh520/vpp-acl-firewall:v1.0.2|your-registry/vpp-acl-firewall:v1.0.2|g' \
   samenode-firewall/nse-firewall/firewall.yaml
 
 # 4. 部署
@@ -223,7 +223,7 @@ git checkout -b 002-acl-localization origin/002-acl-localization
 **解决方案**:
 ```bash
 # 方法 1: 验证镜像存在
-docker pull ifzzh520/vpp-acl-firewall:v1.0.1
+docker pull ifzzh520/vpp-acl-firewall:v1.0.2
 
 # 方法 2: 配置镜像拉取策略
 kubectl edit deployment nse-firewall-vpp -n ns-nse-composition
@@ -258,7 +258,7 @@ go build -o bin/cmd-nse-firewall-vpp .
 
 ```bash
 # 构建生产镜像（多阶段构建，体积最小）
-docker build --target runtime -t ifzzh520/vpp-acl-firewall:v1.0.1 .
+docker build --target runtime -t ifzzh520/vpp-acl-firewall:v1.0.2 .
 
 # 构建测试镜像
 docker build --target test -t ifzzh520/vpp-acl-firewall:test .
@@ -273,7 +273,7 @@ docker images ifzzh520/vpp-acl-firewall
 **输出示例**:
 ```
 REPOSITORY                      TAG       SIZE
-ifzzh520/vpp-acl-firewall       v1.0.1    235MB
+ifzzh520/vpp-acl-firewall       v1.0.2    235MB
 ifzzh520/vpp-acl-firewall       test      520MB
 ifzzh520/vpp-acl-firewall       debug     580MB
 ```
