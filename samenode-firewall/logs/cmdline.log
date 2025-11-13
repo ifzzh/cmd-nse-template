@@ -18,89 +18,89 @@ pod/alpine created
 === WAIT READY (app=nse-firewall-vpp) ===
 Waiting for pods with label app=nse-firewall-vpp to appear (timeout: 60s)...
 Found 1 pod(s) with app=nse-firewall-vpp. Waiting for Ready (timeout: 180s)...
-pod/nse-firewall-vpp-69668bbd5b-8tcqt condition met
+pod/nse-firewall-vpp-b76b6c8b9-dfqng condition met
 
 Current pods:
-NAME                                READY   STATUS     RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
-alpine                              0/2     Init:0/1   0          3s    10.16.0.46   node01   <none>           <none>
-nse-firewall-vpp-69668bbd5b-8tcqt   1/1     Running    0          3s    10.16.0.44   node01   <none>           <none>
-nse-kernel-5d96b8d6d5-cjrkn         2/2     Running    0          3s    10.16.0.45   node01   <none>           <none>
+NAME                               READY   STATUS     RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
+alpine                             0/2     Init:0/1   0          4s    10.16.0.67   node01   <none>           <none>
+nse-firewall-vpp-b76b6c8b9-dfqng   1/1     Running    0          4s    10.16.0.65   node01   <none>           <none>
+nse-kernel-5d96b8d6d5-nvb44        2/2     Running    0          4s    10.16.0.66   node01   <none>           <none>
 
 === SLEEP 10s ===
 
 Current pods:
-NAME                                READY   STATUS    RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
-alpine                              2/2     Running   0          13s   10.16.0.46   node01   <none>           <none>
-nse-firewall-vpp-69668bbd5b-8tcqt   1/1     Running   0          13s   10.16.0.44   node01   <none>           <none>
-nse-kernel-5d96b8d6d5-cjrkn         2/2     Running   0          13s   10.16.0.45   node01   <none>           <none>
+NAME                               READY   STATUS    RESTARTS   AGE   IP           NODE     NOMINATED NODE   READINESS GATES
+alpine                             2/2     Running   0          14s   10.16.0.67   node01   <none>           <none>
+nse-firewall-vpp-b76b6c8b9-dfqng   1/1     Running   0          14s   10.16.0.65   node01   <none>           <none>
+nse-kernel-5d96b8d6d5-nvb44        2/2     Running   0          14s   10.16.0.66   node01   <none>           <none>
 
 === COLLECT LOGS ===
 Kube context: kubernetes-admin@prod-cluster
 Namespace:    ns-nse-composition
 App label:    app=nse-firewall-vpp
 Saving logs for alpine (container: cmd-nsc-init)
-Saving logs for nse-firewall-vpp-69668bbd5b-8tcqt
+Saving logs for nse-firewall-vpp-b76b6c8b9-dfqng
 Logs written to /home/zhengzihao/cmd-nse-template/samenode-firewall/logs/
 
 === DESCRIBE (app=nse-firewall-vpp) ===
 Kube context: kubernetes-admin@prod-cluster
 Namespace:    ns-nse-composition
 App label:    app=nse-firewall-vpp
-+ kubectl describe pod -n ns-nse-composition nse-firewall-vpp-69668bbd5b-8tcqt 
-Name:             nse-firewall-vpp-69668bbd5b-8tcqt
++ kubectl describe pod -n ns-nse-composition nse-firewall-vpp-b76b6c8b9-dfqng 
+Name:             nse-firewall-vpp-b76b6c8b9-dfqng
 Namespace:        ns-nse-composition
 Priority:         0
 Service Account:  default
 Node:             node01/172.168.1.114
-Start Time:       Wed, 12 Nov 2025 12:58:14 +0800
+Start Time:       Thu, 13 Nov 2025 10:58:11 +0800
 Labels:           app=nse-firewall-vpp
-                  pod-template-hash=69668bbd5b
+                  pod-template-hash=b76b6c8b9
                   spiffe.io/spiffe-id=true
 Annotations:      k8s.v1.cni.cncf.io/network-status:
                     [{
                         "name": "kube-ovn",
                         "interface": "eth0",
                         "ips": [
-                            "10.16.0.44"
+                            "10.16.0.65"
                         ],
-                        "mac": "b6:b0:89:0b:aa:d9",
+                        "mac": "e6:68:53:56:20:7c",
                         "default": true,
                         "dns": {},
                         "gateway": [
                             "10.16.0.1"
                         ]
                     }]
-                  kubeovn.io/hostVeth-eth0: c0e327e08950_h
+                  kubeovn.io/hostVeth-eth0: 1487a81c9437_h
                   ovn.kubernetes.io/allocated: true
                   ovn.kubernetes.io/cidr: 10.16.0.0/16
                   ovn.kubernetes.io/gateway: 10.16.0.1
-                  ovn.kubernetes.io/ip_address: 10.16.0.44
+                  ovn.kubernetes.io/ip_address: 10.16.0.65
                   ovn.kubernetes.io/logical_router: ovn-cluster
                   ovn.kubernetes.io/logical_switch: ovn-default
-                  ovn.kubernetes.io/mac_address: b6:b0:89:0b:aa:d9
+                  ovn.kubernetes.io/mac_address: e6:68:53:56:20:7c
                   ovn.kubernetes.io/pod_nic_type: veth-pair
                   ovn.kubernetes.io/routed: true
 Status:           Running
-IP:               10.16.0.44
+IP:               10.16.0.65
 IPs:
-  IP:           10.16.0.44
-Controlled By:  ReplicaSet/nse-firewall-vpp-69668bbd5b
+  IP:           10.16.0.65
+Controlled By:  ReplicaSet/nse-firewall-vpp-b76b6c8b9
 Containers:
   nse:
-    Container ID:   containerd://70f956eb9ac1a1808033df8cba829d6f6ae39f3f0eac75f395f8524b23949a2d
-    Image:          ifzzh520/vpp-acl-firewall:v1.0.0
+    Container ID:   containerd://5eb2e4ad9bb1e93f4e29c8ccd6050bd684ed5c94855467ac721dc05d2186eee8
+    Image:          ifzzh520/vpp-acl-firewall:v1.0.1
     Image ID:       docker.io/ifzzh520/vpp-acl-firewall@sha256:78551ea8c8c2eb3e302d0f2e17a795be7f1c21792dab63f6beb166d1514fc169
     Port:           <none>
     Host Port:      <none>
     State:          Running
-      Started:      Wed, 12 Nov 2025 12:58:16 +0800
+      Started:      Thu, 13 Nov 2025 10:58:14 +0800
     Ready:          True
     Restart Count:  0
     Environment:
       NSM_SERVICE_NAME:        nse-composition
       NSM_LABELS:              app:firewall
       SPIFFE_ENDPOINT_SOCKET:  unix:///run/spire/sockets/agent.sock
-      POD_NAME:                nse-firewall-vpp-69668bbd5b-8tcqt (v1:metadata.name)
+      POD_NAME:                nse-firewall-vpp-b76b6c8b9-dfqng (v1:metadata.name)
       NSM_NAME:                $(POD_NAME)
       NSM_LOG_LEVEL:           TRACE
       NSM_CONNECT_TO:          unix:///var/lib/networkservicemesh/nsm.io.sock
@@ -108,7 +108,7 @@ Containers:
       /etc/firewall/config.yaml from firewall-config-volume (rw,path="config.yaml")
       /run/spire/sockets from spire-agent-socket (ro)
       /var/lib/networkservicemesh from nsm-socket (ro)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-sfphr (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-xm9hr (ro)
 Conditions:
   Type              Status
   Initialized       True 
@@ -128,7 +128,7 @@ Volumes:
     Type:          HostPath (bare host directory volume)
     Path:          /var/lib/networkservicemesh
     HostPathType:  DirectoryOrCreate
-  kube-api-access-sfphr:
+  kube-api-access-xm9hr:
     Type:                    Projected (a volume that contains injected data from multiple sources)
     TokenExpirationSeconds:  3607
     ConfigMapName:           kube-root-ca.crt
@@ -141,25 +141,12 @@ Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists fo
 Events:
   Type    Reason          Age   From               Message
   ----    ------          ----  ----               -------
-  Normal  Scheduled       14s   default-scheduler  Successfully assigned ns-nse-composition/nse-firewall-vpp-69668bbd5b-8tcqt to node01
-  Normal  AddedInterface  13s   multus             Add eth0 [10.16.0.44/16] from kube-ovn
-  Normal  Pulling         13s   kubelet            Pulling image "ifzzh520/vpp-acl-firewall:v1.0.0"
-  Normal  Pulled          12s   kubelet            Successfully pulled image "ifzzh520/vpp-acl-firewall:v1.0.0" in 967ms (967ms including waiting)
+  Normal  Scheduled       15s   default-scheduler  Successfully assigned ns-nse-composition/nse-firewall-vpp-b76b6c8b9-dfqng to node01
+  Normal  AddedInterface  14s   multus             Add eth0 [10.16.0.65/16] from kube-ovn
+  Normal  Pulling         14s   kubelet            Pulling image "ifzzh520/vpp-acl-firewall:v1.0.1"
+  Normal  Pulled          12s   kubelet            Successfully pulled image "ifzzh520/vpp-acl-firewall:v1.0.1" in 1.939s (1.939s including waiting)
   Normal  Created         12s   kubelet            Created container nse
   Normal  Started         12s   kubelet            Started container nse
 
 === GIT COMMIT & PUSH LOGS (repo root) ===
 + cd /home/zhengzihao/cmd-nse-template/samenode-firewall/.. && git add .
-+ git commit -m '推送logs'
-[001-refactor-structure 90b3617] 推送logs
- 7 files changed, 13014 insertions(+), 3 deletions(-)
- create mode 100644 samenode-firewall/logs/cmd-nsc-init.log
- create mode 100644 samenode-firewall/logs/cmdline.log
- create mode 100644 samenode-firewall/logs/nse-firewall-vpp.log
- create mode 100644 samenode-firewall/logs/nse-nat-vpp.log
- mode change 100644 => 100755 samenode-firewall/nsectl.sh
-+ git push
-To github.com:ifzzh/cmd-nse-template.git
-   6205d1e..90b3617  001-refactor-structure -> 001-refactor-structure
-
-=== DONE ===
