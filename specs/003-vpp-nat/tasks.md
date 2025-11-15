@@ -82,7 +82,7 @@
 - [x] T011 [P] [US1] 创建 internal/nat/common.go（空文件，预留公共函数）
 - [x] T012 [US1] 更新 go.mod，确保 NAT 模块导入路径正确（module github.com/ifzzh/cmd-nse-template）
 - [x] T013 [US1] 编译验证（go build ./...）确认无错误
-- [ ] T014 [US1] Git 提交：feat(nat): P1.1 - 创建 NAT 框架 (v1.0.1)
+- [x] T014 [US1] Git 提交：feat(nat): P1.1 - 创建 NAT 框架 (v1.0.1)
 
 **Verification**:
 ```bash
@@ -98,13 +98,13 @@ git log -1 --oneline  # 确认 commit 存在
 
 #### Tasks
 
-- [ ] T015 [US1] 在 internal/nat/common.go 中实现 configureNATInterface() 函数（调用 Nat44InterfaceAddDelFeature，参考 contracts/interface-role-api.md）
-- [ ] T016 [US1] 在 internal/nat/common.go 中实现 disableNATInterface() 函数（清理接口配置，IsAdd=false）
-- [ ] T017 [US1] 在 internal/nat/server.go 的 Request() 方法中集成 configureNATInterface()（判断 inside/outside 角色，使用 metadata.IsClient）
-- [ ] T018 [US1] 在 internal/nat/server.go 的 Close() 方法中集成 disableNATInterface()（资源清理）
-- [ ] T019 [US1] 添加中文日志在 internal/nat/common.go（"配置 NAT 接口: inside/outside"）
-- [ ] T020 [US1] 编译验证（go build ./...）
-- [ ] T021 [US1] VPP CLI 验证（vppctl show nat44 interfaces，确认 inside/outside 接口配置）
+- [x] T015 [US1] 在 internal/nat/common.go 中实现 configureNATInterface() 函数（调用 Nat44InterfaceAddDelFeature，参考 contracts/interface-role-api.md）
+- [x] T016 [US1] 在 internal/nat/common.go 中实现 disableNATInterface() 函数（清理接口配置，IsAdd=false）
+- [x] T017 [US1] 在 internal/nat/server.go 的 Request() 方法中集成 configureNATInterface()（判断 inside/outside 角色，使用 metadata.IsClient）
+- [x] T018 [US1] 在 internal/nat/server.go 的 Close() 方法中集成 disableNATInterface()（资源清理）
+- [x] T019 [US1] 添加中文日志在 internal/nat/common.go（"配置 NAT 接口: inside/outside"）
+- [x] T020 [US1] 编译验证（go build ./...）
+- [x] T021 [US1] VPP CLI 验证（vppctl show nat44 interfaces，确认 inside/outside 接口配置）
 - [ ] T022 [US1] Git 提交：feat(nat): P1.2 - 接口角色配置 (v1.0.2)
 
 **Verification**:

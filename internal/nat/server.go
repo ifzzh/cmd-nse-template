@@ -28,20 +28,35 @@ package nat
 import (
 	"context"
 
+	"github.com/edwarnicke/genericsync"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/networkservicemesh/govpp/binapi/interface_types"
+	"github.com/pkg/errors"
 	"go.fd.io/govpp/api"
 
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/core/next"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/utils/metadata"
+	"github.com/networkservicemesh/sdk/pkg/tools/postpone"
+	"github.com/networkservicemesh/sdk-vpp/pkg/tools/ifindex"
 )
+
+// natInterfaceState NAT 接口状态记录
+type natInterfaceState struct {
+	swIfIndex  interface_types.InterfaceIndex // VPP 接口索引
+	role       NATInterfaceRole                // NAT 角色（inside/outside）
+	configured bool                            // 是否已配置
+}
 
 // natServer NAT 服务器结构体
 // 负责管理 VPP NAT44 规则的创建、应用和删除
 //
 // 字段说明:
 //   - vppConn: VPP API 连接，用于与 VPP 交互
+//   - interfaceStates: 连接 ID 到接口状态的映射（线程安全）
 type natServer struct {
-	vppConn api.Connection // VPP API 连接
+	vppConn         api.Connection                               // VPP API 连接
+	interfaceStates genericsync.Map[string, *natInterfaceState] // 连接 ID -> 接口状态映射
 }
 
 // NewServer 创建 NAT NetworkServiceServer 链式元素
@@ -67,7 +82,11 @@ func NewServer(vppConn api.Connection) networkservice.NetworkServiceServer {
 // Request 处理网络服务请求
 //
 // 功能说明:
-//   1. 调用链中下一个服务器处理请求（当前为空实现）
+//   1. 调用链中下一个服务器处理请求（创建 VPP 接口）
+//   2. 获取接口索引
+//   3. 确定接口角色（client 端为 outside，server 端为 inside）
+//   4. 配置 NAT 接口
+//   5. 记录接口状态
 //
 // 参数:
 //   - ctx: 上下文
@@ -77,14 +96,61 @@ func NewServer(vppConn api.Connection) networkservice.NetworkServiceServer {
 //   - *networkservice.Connection: 建立的连接
 //   - error: 错误信息
 func (n *natServer) Request(ctx context.Context, request *networkservice.NetworkServiceRequest) (*networkservice.Connection, error) {
-	// 当前为空实现，仅调用下一个服务器
-	return next.Server(ctx).Request(ctx, request)
+	// 创建延迟清理上下文，用于失败时清理资源
+	postponeCtxFunc := postpone.ContextWithValues(ctx)
+
+	// 1. 调用链中的下一个服务器（创建 VPP 接口）
+	conn, err := next.Server(ctx).Request(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 获取接口索引
+	isClient := metadata.IsClient(n)
+	swIfIndex, ok := ifindex.Load(ctx, isClient)
+	if !ok {
+		closeCtx, cancelClose := postponeCtxFunc()
+		defer cancelClose()
+		if _, closeErr := n.Close(closeCtx, conn); closeErr != nil {
+			err = errors.Wrapf(err, "连接关闭时发生错误: %s", closeErr.Error())
+		}
+		return nil, errors.New("未找到接口索引")
+	}
+
+	// 3. 确定接口角色
+	var role NATInterfaceRole
+	if isClient {
+		role = NATRoleOutside // client 端连接下游 NSE，配置为 outside
+	} else {
+		role = NATRoleInside // server 端连接 NSC，配置为 inside
+	}
+
+	// 4. 配置 NAT 接口
+	if err := configureNATInterface(ctx, n.vppConn, swIfIndex, role); err != nil {
+		closeCtx, cancelClose := postponeCtxFunc()
+		defer cancelClose()
+		if _, closeErr := n.Close(closeCtx, conn); closeErr != nil {
+			err = errors.Wrapf(err, "连接关闭时发生错误: %s", closeErr.Error())
+		}
+		return nil, err
+	}
+
+	// 5. 记录接口状态
+	n.interfaceStates.Store(conn.GetId(), &natInterfaceState{
+		swIfIndex:  swIfIndex,
+		role:       role,
+		configured: true,
+	})
+
+	return conn, nil
 }
 
-// Close 关闭连接
+// Close 关闭连接并清理 NAT 配置
 //
 // 功能说明:
-//   1. 调用链中的下一个服务器继续关闭流程（当前为空实现）
+//   1. 从映射中加载并删除此连接的接口状态
+//   2. 禁用 NAT 接口功能
+//   3. 调用链中的下一个服务器继续关闭流程
 //
 // 参数:
 //   - ctx: 上下文
@@ -94,6 +160,16 @@ func (n *natServer) Request(ctx context.Context, request *networkservice.Network
 //   - *empty.Empty: 空响应
 //   - error: 错误信息
 func (n *natServer) Close(ctx context.Context, conn *networkservice.Connection) (*empty.Empty, error) {
-	// 当前为空实现，仅调用下一个服务器
+	// 1. 获取接口状态
+	state, loaded := n.interfaceStates.LoadAndDelete(conn.GetId())
+	if loaded && state.configured {
+		// 2. 禁用 NAT 接口（IsAdd = false）
+		if err := disableNATInterface(ctx, n.vppConn, state.swIfIndex, state.role); err != nil {
+			// 禁用失败只记录错误，不阻断关闭流程
+			// log.FromContext(ctx) 已在 disableNATInterface 中记录
+		}
+	}
+
+	// 3. 调用下一个服务器
 	return next.Server(ctx).Close(ctx, conn)
 }

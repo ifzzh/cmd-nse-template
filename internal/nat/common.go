@@ -24,5 +24,125 @@
 // Package nat 提供 NAT44 功能的通用工具和辅助函数
 package nat
 
-// 本文件预留用于未来的 NAT 通用函数和工具
-// 例如：配置解析、VPP API 辅助函数、会话管理等
+import (
+	"context"
+	"fmt"
+
+	"github.com/networkservicemesh/govpp/binapi/interface_types"
+	"github.com/networkservicemesh/govpp/binapi/nat44_ed"
+	"github.com/networkservicemesh/govpp/binapi/nat_types"
+	"github.com/pkg/errors"
+	"go.fd.io/govpp/api"
+
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
+)
+
+// NATInterfaceRole NAT 接口角色类型
+type NATInterfaceRole string
+
+const (
+	// NATRoleInside 内部接口（NSC 侧，源地址转换）
+	NATRoleInside NATInterfaceRole = "inside"
+	// NATRoleOutside 外部接口（下游 NSE 侧，转换后的地址）
+	NATRoleOutside NATInterfaceRole = "outside"
+)
+
+// configureNATInterface 配置 NAT 接口角色（inside/outside）
+//
+// 功能说明:
+//   1. 创建 NAT44 API 客户端
+//   2. 根据角色确定 NAT 标志（NAT_IS_INSIDE 或 NAT_IS_OUTSIDE）
+//   3. 调用 VPP API Nat44InterfaceAddDelFeature 启用 NAT 功能
+//   4. 检查返回值，确认配置成功
+//
+// 参数:
+//   - ctx: 上下文
+//   - vppConn: VPP API 连接
+//   - swIfIndex: VPP 接口索引
+//   - role: NAT 接口角色（inside/outside）
+//
+// 返回:
+//   - error: 错误信息
+func configureNATInterface(ctx context.Context, vppConn api.Connection, swIfIndex interface_types.InterfaceIndex, role NATInterfaceRole) error {
+	logger := log.FromContext(ctx).WithField("nat_server", "configure")
+
+	// 确定 NAT 角色标志
+	var flags nat_types.NatConfigFlags
+	if role == NATRoleInside {
+		flags = nat_types.NAT_IS_INSIDE
+	} else {
+		flags = nat_types.NAT_IS_OUTSIDE
+	}
+
+	// 创建请求
+	req := &nat44_ed.Nat44InterfaceAddDelFeature{
+		IsAdd:     true,
+		Flags:     flags,
+		SwIfIndex: swIfIndex,
+	}
+
+	// 调用 VPP API
+	reply := &nat44_ed.Nat44InterfaceAddDelFeatureReply{}
+	if err := vppConn.Invoke(ctx, req, reply); err != nil {
+		logger.Errorf("VPP API 调用失败: %v", err)
+		return errors.Wrap(err, "VPP API Nat44InterfaceAddDelFeature 调用失败")
+	}
+
+	// 检查返回值
+	if reply.Retval != 0 {
+		logger.Errorf("VPP API 返回错误: retval=%d", reply.Retval)
+		return fmt.Errorf("VPP API 返回错误: %d", reply.Retval)
+	}
+
+	logger.Infof("配置 NAT 接口成功: swIfIndex=%d, role=%s", swIfIndex, role)
+	return nil
+}
+
+// disableNATInterface 禁用 NAT 接口功能
+//
+// 功能说明:
+//   1. 调用 VPP API Nat44InterfaceAddDelFeature 禁用 NAT 功能（IsAdd=false）
+//   2. 用于资源清理，不阻断关闭流程
+//
+// 参数:
+//   - ctx: 上下文
+//   - vppConn: VPP API 连接
+//   - swIfIndex: VPP 接口索引
+//   - role: NAT 接口角色（用于日志）
+//
+// 返回:
+//   - error: 错误信息
+func disableNATInterface(ctx context.Context, vppConn api.Connection, swIfIndex interface_types.InterfaceIndex, role NATInterfaceRole) error {
+	logger := log.FromContext(ctx).WithField("nat_server", "cleanup")
+
+	// 确定 NAT 角色标志
+	var flags nat_types.NatConfigFlags
+	if role == NATRoleInside {
+		flags = nat_types.NAT_IS_INSIDE
+	} else {
+		flags = nat_types.NAT_IS_OUTSIDE
+	}
+
+	// 创建请求（IsAdd=false 表示禁用）
+	req := &nat44_ed.Nat44InterfaceAddDelFeature{
+		IsAdd:     false,
+		Flags:     flags,
+		SwIfIndex: swIfIndex,
+	}
+
+	// 调用 VPP API
+	reply := &nat44_ed.Nat44InterfaceAddDelFeatureReply{}
+	if err := vppConn.Invoke(ctx, req, reply); err != nil {
+		logger.Errorf("VPP API 调用失败: %v", err)
+		return errors.Wrap(err, "VPP API Nat44InterfaceAddDelFeature 调用失败")
+	}
+
+	// 检查返回值
+	if reply.Retval != 0 {
+		logger.Errorf("VPP API 返回错误: retval=%d", reply.Retval)
+		return fmt.Errorf("VPP API 返回错误: %d", reply.Retval)
+	}
+
+	logger.Infof("禁用 NAT 接口成功: swIfIndex=%d, role=%s", swIfIndex, role)
+	return nil
+}
