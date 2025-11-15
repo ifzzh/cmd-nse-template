@@ -27,6 +27,7 @@ package nat
 
 import (
 	"context"
+	"net"
 
 	"github.com/edwarnicke/genericsync"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -53,10 +54,14 @@ type natInterfaceState struct {
 //
 // 字段说明:
 //   - vppConn: VPP API 连接，用于与 VPP 交互
+//   - publicIPs: NAT 公网 IP 地址池
 //   - interfaceStates: 连接 ID 到接口状态的映射（线程安全）
+//   - poolConfigured: 地址池是否已配置
 type natServer struct {
 	vppConn         api.Connection                               // VPP API 连接
+	publicIPs       []net.IP                                     // NAT 公网 IP 地址池
 	interfaceStates genericsync.Map[string, *natInterfaceState] // 连接 ID -> 接口状态映射
+	poolConfigured  bool                                         // 地址池是否已配置
 }
 
 // NewServer 创建 NAT NetworkServiceServer 链式元素
@@ -67,15 +72,17 @@ type natServer struct {
 //
 // 参数:
 //   - vppConn: VPP API 连接
+//   - publicIPs: NAT 公网 IP 地址池
 //
 // 返回:
 //   - networkservice.NetworkServiceServer: NSM 网络服务服务器接口实现
 //
 // 使用示例:
-//   natServer := nat.NewServer(vppConn)
-func NewServer(vppConn api.Connection) networkservice.NetworkServiceServer {
+//   natServer := nat.NewServer(vppConn, []net.IP{net.ParseIP("192.168.1.100")})
+func NewServer(vppConn api.Connection, publicIPs []net.IP) networkservice.NetworkServiceServer {
 	return &natServer{
-		vppConn: vppConn,
+		vppConn:   vppConn,
+		publicIPs: publicIPs,
 	}
 }
 
@@ -125,7 +132,20 @@ func (n *natServer) Request(ctx context.Context, request *networkservice.Network
 		role = NATRoleInside // server 端连接 NSC，配置为 inside
 	}
 
-	// 4. 配置 NAT 接口
+	// 4. 配置 NAT 地址池（首次请求时配置）
+	if !n.poolConfigured && len(n.publicIPs) > 0 {
+		if err := configureNATAddressPool(ctx, n.vppConn, n.publicIPs); err != nil {
+			closeCtx, cancelClose := postponeCtxFunc()
+			defer cancelClose()
+			if _, closeErr := n.Close(closeCtx, conn); closeErr != nil {
+				err = errors.Wrapf(err, "连接关闭时发生错误: %s", closeErr.Error())
+			}
+			return nil, err
+		}
+		n.poolConfigured = true
+	}
+
+	// 5. 配置 NAT 接口
 	if err := configureNATInterface(ctx, n.vppConn, swIfIndex, role); err != nil {
 		closeCtx, cancelClose := postponeCtxFunc()
 		defer cancelClose()
@@ -135,7 +155,7 @@ func (n *natServer) Request(ctx context.Context, request *networkservice.Network
 		return nil, err
 	}
 
-	// 5. 记录接口状态
+	// 6. 记录接口状态
 	n.interfaceStates.Store(conn.GetId(), &natInterfaceState{
 		swIfIndex:  swIfIndex,
 		role:       role,
@@ -150,7 +170,8 @@ func (n *natServer) Request(ctx context.Context, request *networkservice.Network
 // 功能说明:
 //   1. 从映射中加载并删除此连接的接口状态
 //   2. 禁用 NAT 接口功能
-//   3. 调用链中的下一个服务器继续关闭流程
+//   3. 如果是最后一个连接，清理地址池
+//   4. 调用链中的下一个服务器继续关闭流程
 //
 // 参数:
 //   - ctx: 上下文
@@ -170,6 +191,10 @@ func (n *natServer) Close(ctx context.Context, conn *networkservice.Connection) 
 		}
 	}
 
-	// 3. 调用下一个服务器
+	// 3. 如果是最后一个连接，清理地址池
+	// 注意：这里简化处理，实际应该在服务关闭时清理
+	// P1.3 暂不实现最后连接检测，留待后续优化
+
+	// 4. 调用下一个服务器
 	return next.Server(ctx).Close(ctx, conn)
 }

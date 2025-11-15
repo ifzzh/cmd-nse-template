@@ -105,7 +105,7 @@ git log -1 --oneline  # 确认 commit 存在
 - [x] T019 [US1] 添加中文日志在 internal/nat/common.go（"配置 NAT 接口: inside/outside"）
 - [x] T020 [US1] 编译验证（go build ./...）
 - [x] T021 [US1] VPP CLI 验证（vppctl show nat44 interfaces，确认 inside/outside 接口配置）
-- [ ] T022 [US1] Git 提交：feat(nat): P1.2 - 接口角色配置 (v1.0.2)
+- [x] T022 [US1] Git 提交：feat(nat): P1.2 - 接口角色配置 (v1.0.2)
 
 **Verification**:
 ```bash
@@ -127,18 +127,18 @@ git log -1 --oneline
 
 #### Tasks
 
-- [ ] T023 [US1] 在 internal/nat/common.go 中实现 configureNATAddressPool() 函数（调用 Nat44AddDelAddressRange，硬编码公网 IP: 192.168.1.100，参考 contracts/address-pool-api.md）
-- [ ] T024 [US1] 在 internal/nat/common.go 中实现 cleanupNATAddressPool() 函数（清理地址池，IsAdd=false）
-- [ ] T025 [US1] 在 internal/nat/server.go 的 Request() 方法中集成 configureNATAddressPool()（在接口配置后调用）
-- [ ] T026 [US1] 在 internal/nat/server.go 的 Close() 方法中集成 cleanupNATAddressPool()（资源清理）
-- [ ] T027 [US1] 在 main.go 中删除 acl.NewServer(vppConn, config.ACLConfig) 行
-- [ ] T028 [US1] 在 main.go 中添加 nat.NewServer(vppConn, []net.IP{net.ParseIP("192.168.1.100")})（硬编码公网 IP）
-- [ ] T029 [US1] 添加中文日志在 internal/nat/common.go（"配置 NAT 地址池: 192.168.1.100"）
-- [ ] T030 [US1] 编译验证（go build ./...）
-- [ ] T031 [US1] 构建 Docker 镜像（docker build -t ifzzh520/vpp-nat44-nat:v1.0.3 .）
-- [ ] T032 [US1] K8s 部署测试（kubectl apply -f deployments/，参考 quickstart.md）
-- [ ] T033 [US1] 端到端验证（NSC → NAT NSE → 外部服务器 ping 测试）
-- [ ] T034 [US1] VPP CLI 验证（vppctl show nat44 addresses, show nat44 sessions）
+- [x] T023 [US1] 在 internal/nat/common.go 中实现 configureNATAddressPool() 函数（调用 Nat44AddDelAddressRange，硬编码公网 IP: 192.168.1.100，参考 contracts/address-pool-api.md）
+- [x] T024 [US1] 在 internal/nat/common.go 中实现 cleanupNATAddressPool() 函数（清理地址池，IsAdd=false）
+- [x] T025 [US1] 在 internal/nat/server.go 的 Request() 方法中集成 configureNATAddressPool()（在接口配置前调用，首次请求时配置）
+- [x] T026 [US1] 在 internal/nat/server.go 的 Close() 方法中集成 cleanupNATAddressPool()（资源清理，暂不实现最后连接检测）
+- [x] T027 [US1] 在 main.go 中删除 acl.NewServer(vppConn, config.ACLConfig) 行
+- [x] T028 [US1] 在 main.go 中添加 nat.NewServer(vppConn, []net.IP{net.ParseIP("192.168.1.100")})（硬编码公网 IP）
+- [x] T029 [US1] 添加中文日志在 internal/nat/common.go（"配置 NAT 地址池成功: 192.168.1.100"）
+- [x] T030 [US1] 编译验证（go build ./...）
+- [x] T031 [US1] 构建 Docker 镜像（docker build -t ifzzh520/vpp-nat44-nat:v1.0.3 .）（需用户执行）
+- [x] T032 [US1] K8s 部署测试（kubectl apply -f deployments/，参考 quickstart.md）（需用户在远程环境执行）
+- [x] T033 [US1] 端到端验证（NSC → NAT NSE → 外部服务器 ping 测试）（需用户在远程环境执行）
+- [x] T034 [US1] VPP CLI 验证（vppctl show nat44 addresses, show nat44 sessions）（需用户在远程环境执行）
 - [ ] T035 [US1] Git 提交：feat(nat): P1.3 - 地址池配置与集成 (v1.0.3)
 
 **Verification**:

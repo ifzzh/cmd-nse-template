@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"net"
 	"net/url"
 	"os"
 	"os/signal"
@@ -60,7 +61,7 @@ import (
 
 	// 本地模块
 	"github.com/ifzzh/cmd-nse-template/internal"
-	"github.com/ifzzh/cmd-nse-template/internal/acl"
+	"github.com/ifzzh/cmd-nse-template/internal/nat"
 )
 
 func main() {
@@ -221,7 +222,7 @@ func main() {
 			up.NewServer(ctx, vppConn),                   // VPP接口UP状态管理
 			clienturl.NewServer(&config.ConnectTo),       // 客户端连接URL
 			xconnect.NewServer(vppConn),                  // VPP交叉连接（L2转发）
-			acl.NewServer(vppConn, config.ACLConfig),     // ACL防火墙规则应用 ← 核心功能
+			nat.NewServer(vppConn, []net.IP{net.ParseIP("192.168.1.100")}), // NAT44 地址转换 ← 核心功能（硬编码公网 IP）
 			mechanisms.NewServer(map[string]networkservice.NetworkServiceServer{
 				memif.MECHANISM: chain.NewNetworkServiceServer(memif.NewServer(ctx, vppConn)), // memif共享内存接口
 			}),

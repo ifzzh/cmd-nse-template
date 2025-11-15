@@ -27,8 +27,10 @@ package nat
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/networkservicemesh/govpp/binapi/interface_types"
+	"github.com/networkservicemesh/govpp/binapi/ip_types"
 	"github.com/networkservicemesh/govpp/binapi/nat44_ed"
 	"github.com/networkservicemesh/govpp/binapi/nat_types"
 	"github.com/pkg/errors"
@@ -144,5 +146,114 @@ func disableNATInterface(ctx context.Context, vppConn api.Connection, swIfIndex 
 	}
 
 	logger.Infof("禁用 NAT 接口成功: swIfIndex=%d, role=%s", swIfIndex, role)
+	return nil
+}
+
+// configureNATAddressPool 配置 NAT 地址池
+//
+// 功能说明:
+//   1. 遍历公网 IP 列表
+//   2. 将 net.IP 转换为 ip_types.IP4Address
+//   3. 调用 VPP API Nat44AddDelAddressRange 添加地址池
+//   4. 检查返回值，确认配置成功
+//
+// 参数:
+//   - ctx: 上下文
+//   - vppConn: VPP API 连接
+//   - publicIPs: 公网 IP 地址列表
+//
+// 返回:
+//   - error: 错误信息
+func configureNATAddressPool(ctx context.Context, vppConn api.Connection, publicIPs []net.IP) error {
+	logger := log.FromContext(ctx).WithField("nat_server", "configure_pool")
+
+	for _, publicIP := range publicIPs {
+		// 1. 转换 net.IP 为 ip_types.IP4Address
+		ip4 := publicIP.To4()
+		if ip4 == nil {
+			return fmt.Errorf("公网 IP 不是有效的 IPv4 地址: %s", publicIP)
+		}
+
+		var firstIP ip_types.IP4Address
+		copy(firstIP[:], ip4)
+		lastIP := firstIP // 单个 IP 时，起始和结束地址相同
+
+		// 2. 创建请求
+		req := &nat44_ed.Nat44AddDelAddressRange{
+			FirstIPAddress: firstIP,
+			LastIPAddress:  lastIP,
+			VrfID:          0,    // 默认 VRF
+			IsAdd:          true, // 添加地址池
+			Flags:          0,    // 默认标志
+		}
+
+		// 3. 调用 VPP API
+		reply := &nat44_ed.Nat44AddDelAddressRangeReply{}
+		if err := vppConn.Invoke(ctx, req, reply); err != nil {
+			logger.Errorf("VPP API 调用失败: publicIP=%s, error=%v", publicIP.String(), err)
+			return errors.Wrapf(err, "VPP API Nat44AddDelAddressRange 调用失败（IP: %s）", publicIP)
+		}
+
+		// 4. 检查返回值
+		if reply.Retval != 0 {
+			logger.Errorf("VPP API 返回错误: publicIP=%s, retval=%d", publicIP.String(), reply.Retval)
+			return fmt.Errorf("VPP API 返回错误: %d（IP: %s）", reply.Retval, publicIP)
+		}
+
+		logger.Infof("配置 NAT 地址池成功: %s", publicIP.String())
+	}
+
+	return nil
+}
+
+// cleanupNATAddressPool 删除 NAT 地址池
+//
+// 功能说明:
+//   1. 调用 VPP API Nat44AddDelAddressRange 删除地址池（IsAdd=false）
+//   2. 用于资源清理，不阻断关闭流程
+//
+// 参数:
+//   - ctx: 上下文
+//   - vppConn: VPP API 连接
+//   - publicIPs: 公网 IP 地址列表
+//
+// 返回:
+//   - error: 错误信息
+func cleanupNATAddressPool(ctx context.Context, vppConn api.Connection, publicIPs []net.IP) error {
+	logger := log.FromContext(ctx).WithField("nat_server", "cleanup_pool")
+
+	for _, publicIP := range publicIPs {
+		ip4 := publicIP.To4()
+		if ip4 == nil {
+			continue
+		}
+
+		var firstIP ip_types.IP4Address
+		copy(firstIP[:], ip4)
+		lastIP := firstIP
+
+		req := &nat44_ed.Nat44AddDelAddressRange{
+			FirstIPAddress: firstIP,
+			LastIPAddress:  lastIP,
+			VrfID:          0,
+			IsAdd:          false, // 删除地址池
+			Flags:          0,
+		}
+
+		reply := &nat44_ed.Nat44AddDelAddressRangeReply{}
+		if err := vppConn.Invoke(ctx, req, reply); err != nil {
+			logger.Errorf("VPP API 调用失败: publicIP=%s, error=%v", publicIP.String(), err)
+			// 继续删除其他地址，不中断
+			continue
+		}
+
+		if reply.Retval != 0 {
+			logger.Errorf("VPP API 返回错误: publicIP=%s, retval=%d", publicIP.String(), reply.Retval)
+			continue
+		}
+
+		logger.Infof("删除 NAT 地址池成功: %s", publicIP.String())
+	}
+
 	return nil
 }
