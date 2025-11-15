@@ -139,7 +139,7 @@ git log -1 --oneline
 - [x] T032 [US1] K8s 部署测试（kubectl apply -f deployments/，参考 quickstart.md）（需用户在远程环境执行）
 - [x] T033 [US1] 端到端验证（NSC → NAT NSE → 外部服务器 ping 测试）（需用户在远程环境执行）
 - [x] T034 [US1] VPP CLI 验证（vppctl show nat44 addresses, show nat44 sessions）（需用户在远程环境执行）
-- [ ] T035 [US1] Git 提交：feat(nat): P1.3 - 地址池配置与集成 (v1.0.3)
+- [x] T035 [US1] Git 提交：feat(nat): P1.3 - 地址池配置与集成 (v1.0.3)
 
 **Verification**:
 ```bash
