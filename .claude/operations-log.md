@@ -521,3 +521,84 @@ $ git log --oneline
 **操作人员**: Claude Code
 **操作时间**: 2025-11-11
 **操作结果**: 成功
+
+---
+
+## 2025-01-15 - VPP NAT 项目实施（Phase 1: Setup）
+
+### Feature: VPP NAT 网络服务端点
+**Feature Branch**: `003-vpp-nat`
+**Project**: 将 ACL 防火墙项目转型为 NAT 网络服务端点
+
+### Phase 1: Setup（项目初始化）
+
+#### T001: 创建 Git 标签 v1.0.0-acl-final
+- **时间**: 2025-01-15
+- **操作**: 创建 Git 标签 `v1.0.0-acl-final`
+- **理由**: 标记 ACL 防火墙的最后稳定版本，在转型为 NAT 项目前保留回退点
+- **命令**: `git tag -a v1.0.0-acl-final -m "ACL 防火墙最后稳定版本（转型为 NAT 项目前）"`
+- **结果**: ✅ 成功创建标签
+- **验证**: `git tag | grep v1.0.0-acl-final`
+
+#### T002: 验证 VPP v24.10.0 镜像可用性
+- **时间**: 2025-01-15
+- **操作**: 验证 VPP 镜像 `ghcr.io/networkservicemesh/govpp/vpp:v24.10.0-4-ga9d527a67`
+- **理由**: 确保 Docker 镜像可用，避免后续构建失败
+- **命令**: `docker pull ghcr.io/networkservicemesh/govpp/vpp:v24.10.0-4-ga9d527a67`
+- **结果**: ✅ 镜像已存在于本地（Image is up to date）
+- **验证**: `docker images | grep vpp`
+
+#### T003: 验证 govpp 版本
+- **时间**: 2025-01-15
+- **操作**: 验证 govpp 版本
+- **当前版本**: `go.fd.io/govpp v0.11.0`（遵循现有代码）
+- **决策**: 使用现有代码中的 govpp 版本，不升级或降级
+- **理由**: 用户要求"版本问题首先严格参照现有代码的实现中所采用的"
+- **命令**: `go list -m go.fd.io/govpp`
+- **结果**: ✅ 版本验证通过
+
+#### T004: 验证 NSM SDK 版本
+- **时间**: 2025-01-15
+- **操作**: 验证 NSM SDK 版本
+- **当前版本**: `github.com/networkservicemesh/sdk v0.5.1-0.20250625085623-466f486d183e`
+- **决策**: 使用现有代码中的 NSM SDK 版本
+- **理由**: 保持与现有 ACL 实现的一致性
+- **命令**: `go list -m github.com/networkservicemesh/sdk`
+- **结果**: ✅ 版本验证通过
+
+#### T005: 创建功能分支 003-vpp-nat
+- **时间**: 2025-01-15
+- **操作**: 切换到功能分支 `003-vpp-nat`
+- **命令**: `git checkout 003-vpp-nat`
+- **结果**: ✅ 已在正确的功能分支上
+- **验证**: `git branch | grep "*"`
+
+#### T006: 更新 operations-log.md
+- **时间**: 2025-01-15
+- **操作**: 追加 Phase 1 Setup 记录到 `.claude/operations-log.md`
+- **理由**: 记录所有决策和操作，保持可审计性
+- **结果**: ✅ 记录已追加
+
+### Phase 1 完成状态
+
+- **完成任务数**: 6/6
+- **状态**: ✅ 全部完成
+- **下一步**: 进入 Phase 3: User Story 1 - P1.1 NAT 框架创建（T007-T014）
+
+### 关键决策记录
+
+#### 决策 #001: 版本策略
+- **时间**: 2025-01-15
+- **问题**: spec.md Q4 建议使用 govpp `v0.0.0-20240328101142-8a444680fbba`，但项目使用 `v0.11.0`
+- **决策**: 严格遵循现有代码的版本，不进行升级或降级
+- **理由**: 用户明确要求"版本问题首先严格参照现有代码的实现中所采用的"
+- **影响**: 保持与 ACL 实现的一致性，降低兼容性风险
+
+#### 决策 #002: VPP 镜像来源
+- **时间**: 2025-01-15
+- **问题**: spec.md 提到 `ligato/vpp-base:v24.10.0`，但项目使用 `ghcr.io/networkservicemesh/govpp/vpp:v24.10.0-4-ga9d527a67`
+- **决策**: 使用项目 Dockerfile 中定义的镜像
+- **理由**: 与现有构建流程一致，避免兼容性问题
+- **影响**: 使用 NSM 官方维护的 VPP 镜像，集成度更好
+
+---
