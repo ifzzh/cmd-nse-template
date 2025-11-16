@@ -842,3 +842,46 @@ kubectl exec -it <nsc-pod> -- ping 8.8.8.8
 - 任务范围: T036-T045
 - 目标: 从配置文件加载 NAT 配置，删除 ACL 配置字段
 
+
+---
+
+## 2025-01-16 - Docker 镜像推送到 Docker Hub
+
+### 镜像推送
+**时间**: 2025-01-16 03:20 UTC
+**操作**: 将 NAT 镜像推送到 Docker Hub
+
+#### 推送详情
+- **镜像 1**: `ifzzh520/vpp-nat44-nat:v1.0.3`
+  - Digest: sha256:4afa65f8103bd6a5904b0d9b0e6377f750bb94d22dc170846c7b392dd62158e6
+  - Size: 953 bytes (manifest)
+  - 状态: ✅ 推送成功
+
+- **镜像 2**: `ifzzh520/vpp-nat44-nat:latest`
+  - Digest: sha256:4afa65f8103bd6a5904b0d9b0e6377f750bb94d22dc170846c7b392dd62158e6
+  - Size: 953 bytes (manifest)
+  - 状态: ✅ 推送成功
+
+#### 层复用
+- 2 层从现有镜像复用（ifzzh520/vpp-acl-firewall）
+- 1 层新推送（NAT 应用层）
+
+### 验证
+```bash
+# 从 Docker Hub 拉取镜像
+docker pull ifzzh520/vpp-nat44-nat:v1.0.3
+docker pull ifzzh520/vpp-nat44-nat:latest
+
+# 验证镜像
+docker images | grep vpp-nat44-nat
+```
+
+### 使用方式
+```bash
+# Kubernetes 部署（自动从 Docker Hub 拉取）
+kubectl apply -k samenode-nat/
+
+# 手动拉取测试
+docker run --rm ifzzh520/vpp-nat44-nat:v1.0.3 /bin/app --version
+```
+
