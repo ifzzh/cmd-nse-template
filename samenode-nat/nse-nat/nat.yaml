@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: nse
-          image: ifzzh520/vpp-nat44-nat:v1.0.4
+          image: ifzzh520/vpp-nat44-nat:v1.0.5
           imagePullPolicy: Always
           env:
             - name: SPIFFE_ENDPOINT_SOCKET
