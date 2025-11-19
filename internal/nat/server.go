@@ -68,6 +68,7 @@ type natServer struct {
 //
 // 功能说明:
 //   - 创建一个 NAT 服务器，用于在 VPP 接口上应用 NAT44 规则
+//   - 启用 VPP NAT44 ED 插件（VPP 21.01+ 版本必须显式启用）
 //   - 作为 NSM 链式处理的一个环节，接收请求并传递给下一个处理器
 //
 // 参数:
@@ -79,7 +80,17 @@ type natServer struct {
 //
 // 使用示例:
 //   natServer := nat.NewServer(vppConn, []net.IP{net.ParseIP("192.168.1.100")})
+//
+// 注意:
+//   如果 NAT44 插件启用失败，会触发 panic，确保错误在启动时暴露
 func NewServer(vppConn api.Connection, publicIPs []net.IP) networkservice.NetworkServiceServer {
+	// 启用 NAT44 ED 插件
+	ctx := context.Background()
+	if err := enableNAT44Plugin(ctx, vppConn); err != nil {
+		// 启动时失败，使用 panic 确保错误被捕获
+		panic(err)
+	}
+
 	return &natServer{
 		vppConn:   vppConn,
 		publicIPs: publicIPs,

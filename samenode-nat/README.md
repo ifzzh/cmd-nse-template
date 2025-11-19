@@ -17,7 +17,7 @@ NSC (Client) → NAT NSE (VPP NAT44) → Server (nginx)
 
 ## 版本信息
 
-- **NAT NSE 镜像**: `ifzzh520/vpp-nat44-nat:v1.0.3`
+- **NAT NSE 镜像**: `ifzzh520/vpp-nat44-nat:v1.0.4`
 - **NAT 公网 IP**: 192.168.1.100（硬编码）
 - **VPP 版本**: v24.10.0-4-ga9d527a67
 
@@ -27,7 +27,7 @@ NSC (Client) → NAT NSE (VPP NAT44) → Server (nginx)
 
 ```bash
 cd /path/to/cmd-nse-firewall-vpp
-docker build -t ifzzh520/vpp-nat44-nat:v1.0.3 -t ifzzh520/vpp-nat44-nat:latest .
+docker build -t ifzzh520/vpp-nat44-nat:v1.0.4 -t ifzzh520/vpp-nat44-nat:latest .
 ```
 
 ### 2. 部署到 Kubernetes
@@ -74,6 +74,7 @@ kubectl delete -k samenode-nat/
 
 ## 版本历史
 
+- **v1.0.4** (2025-01-19): 修复 NAT44 ED 插件启用问题（解决 VPP API -126 错误）
 - **v1.0.3** (2025-01-15): 地址池配置与 ACL→NAT 转型
 - **v1.0.2** (2025-01-15): 接口角色配置
 - **v1.0.1** (2025-01-15): NAT 框架创建

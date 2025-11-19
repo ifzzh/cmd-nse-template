@@ -49,6 +49,51 @@ const (
 	NATRoleOutside NATInterfaceRole = "outside"
 )
 
+// enableNAT44Plugin 启用 VPP NAT44 ED 插件
+//
+// 功能说明:
+//   1. 调用 VPP API Nat44EdPluginEnableDisable 启用插件
+//   2. 配置会话数等参数
+//   3. 检查返回值，确认启用成功
+//
+// 注意事项:
+//   - 必须在配置地址池和接口之前调用此函数
+//   - VPP 21.01+ 版本中 NAT44 插件默认禁用，必须显式启用
+//   - 如果插件已启用，某些 VPP 版本可能返回非零值（可忽略）
+//
+// 参数:
+//   - ctx: 上下文
+//   - vppConn: VPP API 连接
+//
+// 返回:
+//   - error: 错误信息
+func enableNAT44Plugin(ctx context.Context, vppConn api.Connection) error {
+	logger := log.FromContext(ctx).WithField("nat_server", "enable_plugin")
+
+	// 创建请求
+	req := &nat44_ed.Nat44EdPluginEnableDisable{
+		Enable:   true,
+		Sessions: 10000, // 默认最大会话数 10000，可根据需要调整
+		// InsideVrf 和 OutsideVrf 默认为 0（默认 VRF）
+	}
+
+	// 调用 VPP API
+	reply := &nat44_ed.Nat44EdPluginEnableDisableReply{}
+	if err := vppConn.Invoke(ctx, req, reply); err != nil {
+		logger.Errorf("VPP API 调用失败: %v", err)
+		return errors.Wrap(err, "VPP API Nat44EdPluginEnableDisable 调用失败")
+	}
+
+	// 检查返回值
+	if reply.Retval != 0 {
+		logger.Errorf("VPP API 返回错误: retval=%d", reply.Retval)
+		return fmt.Errorf("VPP API 返回错误: %d", reply.Retval)
+	}
+
+	logger.Infof("NAT44 ED 插件启用成功")
+	return nil
+}
+
 // configureNATInterface 配置 NAT 接口角色（inside/outside）
 //
 // 功能说明:
