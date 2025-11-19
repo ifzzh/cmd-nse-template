@@ -239,6 +239,7 @@ func main() {
 						mechanismtranslation.NewClient(),            // 机制转换
 						passthrough.NewClient(config.Labels),        // 标签透传
 						up.NewClient(ctx, vppConn),                  // VPP接口UP（客户端）
+						nat.NewClient(vppConn),                      // NAT44 接口配置（客户端侧，配置为 outside）
 						xconnect.NewClient(vppConn),                 // VPP交叉连接（客户端）
 						memif.NewClient(ctx, vppConn),               // memif接口（客户端）
 						sendfd.NewClient(),                          // 发送FD（客户端）

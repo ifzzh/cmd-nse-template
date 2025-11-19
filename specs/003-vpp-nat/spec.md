@@ -5,6 +5,198 @@
 **Status**: Draft
 **Input**: User description: "将本地基于ACL vpp的防火墙，制作一个同样基于vpp的nat，功能是能够修改NSM传输到NSE的数据包的ip和端口；要求最小化改动，严格模仿NSE端点构建的流程，只改动需要改动的部分；模仿ACL实现一个本地的NAT插件（也可以参考vpp自身的nat44插件）。要求良好定义开发流程，从简单到复杂，每一步做好版本控制和测试"
 
+## Clarifications
+
+### Session 2025-01-13
+
+**Q1: 是否应该直接修改现有代码，还是创建新项目？**
+- **A**: 直接修改现有 ACL 防火墙代码，不创建新项目。将 ACL 代码改为 NAT44 需要的实现。
+
+**Q11: ACL 代码处理策略**
+- **A**: 渐进式清理策略：
+  - **初期**：可以直接修改 ACL 代码为 NAT，或先复制 ACL 到备份目录（如 `.archive/acl/` 或临时分支）用作参考
+  - **中期**：在 NAT 实现过程中，ACL 代码作为参考模板存在
+  - **最终**：NAT 实现完成并验收合格后，彻底删除所有 ACL 相关代码（包括 `internal/acl/` 目录、main.go 中的 ACL 导入和链条、配置文件中的 ACL 规则）
+  - **版本管理**：删除 ACL 代码时创建单独的 commit，便于必要时回溯
+
+**Q12: 项目重命名策略**
+- **A**: 保持现有项目名称和路径不变：
+  - **仓库名称**：保持 `cmd-nse-firewall-vpp` 不变
+  - **模块路径**：保持 `github.com/ifzzh/cmd-nse-template` 不变
+  - **目录结构**：保持现有目录名不变
+  - **文档更新**：更新 README.md 和相关文档，说明项目已从 ACL 防火墙转型为 NAT 网络服务端点
+  - **镜像命名**：使用 `ifzzh520/vpp-nat44-nat` 清晰表明功能（已在 spec 中定义）
+  - **理由**：避免大规模重命名带来的风险和工作量，保持 Git 历史连续性，镜像名称已足够清晰
+
+**Q13: ACL 代码渐进式清理的执行细节**
+- **Q13.1 - ACL 代码删除的具体时间点**: **D - 创建独立的 P5 阶段专门删除 ACL**
+  - **阶段定义**: P5 - 清理 ACL 遗留代码（v1.3.0），作为独立阶段在 P4（静态端口映射）完成后执行
+  - **工作内容**:
+    - 彻底删除 `internal/acl/` 目录及所有 ACL 代码文件
+    - 删除 `main.go` 中的 ACL 导入和集成代码
+    - 删除 `Config` 结构体中的所有 ACL 配置字段（`ACLConfigPath`、`ACLConfig`、`retrieveACLRules()`）
+    - 删除配置文件示例中的 ACL 规则
+    - 更新 README.md 和所有文档，移除 ACL 相关说明
+    - 搜索代码库确保无 ACL 残留（`grep -ri "acl" .` 无结果，忽略大小写）
+  - **验收标准**:
+    - 代码编译通过，所有 NAT 功能测试通过
+    - 代码库中无任何 ACL 痕迹（除 Git 历史）
+    - Docker 镜像构建成功，K8s 部署验证通过
+  - **版本管理**: 单独的 commit `refactor(cleanup): P5 - 彻底删除 ACL 遗留代码 (v1.3.0)`
+  - **理由**: 清理工作正式化，有明确的验收标准和回退方案，避免与 P1-P4 功能开发混淆
+
+- **Q13.2 - P1.3 中 ACL 和 NAT 代码的集成策略**: **B - 直接替换（删除 ACL，添加 NAT）**
+  - **实施方式**: P1.3 的 commit 中直接删除 `main.go:224` 的 `acl.NewServer(vppConn, config.ACLConfig)`，替换为 `nat.NewServer(vppConn, config.NATConfig)`
+  - **回退保障**: P1.3 之前创建 Git 标签 `v1.0.0-acl-final`，标记 ACL 功能的最后稳定版本，便于必要时回溯
+  - **理由**: 符合"直接转型为 NAT 项目"的核心意图，避免长期维护两套代码的成本，Git 版本控制提供充分的回退能力
+
+- **Q13.3 - Config 结构体中 ACLConfig 字段的处理时机**: **B - P2（配置管理阶段）删除并替换**
+  - **P1.3 策略**: 保留 `Config` 结构体中的 ACL 字段（避免大范围改动），但 `nat.NewServer()` 使用硬编码的公网 IP 参数（如 `[]net.IP{net.ParseIP("192.168.1.100")}`），不依赖配置文件
+  - **P2 策略**:
+    - 删除 `ACLConfigPath`、`ACLConfig` 字段和 `retrieveACLRules()` 函数
+    - 添加 `NATConfigPath string` 和 `NATConfig NATConfig` 字段
+    - 实现 NAT 配置文件加载逻辑（从 YAML 加载公网 IP、端口范围等）
+    - 版本号 v1.0.4
+  - **理由**: P1.3 专注于核心功能（NAT API 调用验证），P2 专注于配置管理，职责单一，降低每个阶段的风险
+
+**Q2: VPP 数据面的规则/插件注入是双向的还是在某个接口发生？**
+- **A**: 基于代码分析（`main.go:210-248`）：
+  - NSE 使用双接口架构：Interface A（server 端）连接 NSC，Interface B（client 端）连接下游 NSE
+  - VPP xconnect 在两个接口之间创建 L2 桥接
+  - NAT 配置通过接口角色实现（inside/outside），VPP 自动处理双向转换
+  - 与 ACL 不同：ACL 需要手动创建双向规则（src/dst 交换），NAT 仅需配置接口角色一次
+
+**Q3: 是否应该取消 ACL 中的双向规则模式？**
+- **A**: 是的。NAT 不需要 ACL 的 src/dst 交换逻辑：
+  - ACL 实现：创建两组规则（ingress + egress），出站规则交换 src/dst
+  - NAT 实现：配置接口为 inside/outside，VPP 通过会话表自动处理反向转换
+  - 结论：NAT 实现比 ACL 更简单
+
+**Q4: NAT 插件本地化策略？**
+- **A**: 完全遵循 ACL 本地化模式（`specs/002-acl-localization/spec.md`）：
+  - 本地化模块：`nat_types` 和 `nat44_ed`（从 govpp binapi 复制到 `internal/`）
+  - 版本：govpp v0.0.0-20240328101142-8a444680fbba（VPP 23.10-rc0~170-g6f1548434）
+  - 最小化修改：仅添加中文注释，不修改业务逻辑
+  - 版本管理：基线 v1.0.0 → v1.1.0（nat_types）→ v1.1.1（nat44_ed）
+
+**Q5: 应该使用 VPP NAT44 官方实现还是自研？**
+- **A**: 使用 VPP NAT44 ED 官方实现：
+  - 难度对比：官方 2/5 vs 自研 5/5
+  - 代码量：官方 ~50 行 vs 自研 ~500-1000 行
+  - 开发周期：官方 1-2 周 vs 自研 1-2 个月
+  - 功能：VPP 自动管理会话表、超时、端口分配，自研需手动实现
+  - 风险：官方低风险，自研高风险
+
+**Q6: NAT 接口角色配置？**
+- **A**: 基于 SFC 架构（NSC → NAT NSE → 下游 NSE → 外网）：
+  - Interface A（server 端）：配置为 NAT **inside** 接口（内部网络侧）
+  - Interface B（client 端）：配置为 NAT **outside** 接口（外部网络侧）
+  - 数据流：NSC → Interface A (inside) → SNAT 转换 → xconnect → Interface B (outside) → 外网
+
+**Q7: SNAT 和 DNAT 的关系？**
+- **A**: 两者可共存，功能不同：
+  - SNAT（P1）：出站流量源地址转换（NSC → 外网），VPP 自动处理反向响应
+  - DNAT（P4）：入站流量目的地址转换（外网 → 内部服务），基于静态端口映射
+  - SNAT 反向路径 ≠ DNAT 正向路径（前者基于会话，后者基于静态映射）
+
+**Q8: P1 阶段（基础 SNAT）的最小可验证单元是什么？**
+- **A**: 将 P1 拆分为 3 个独立的可验证子模块，每个子模块可独立提交、构建、测试、回退：
+  - **P1.1 - NAT 框架创建**（v1.0.1）：创建 `internal/nat/` 目录和文件结构（`server.go`、`common.go`），实现空的 `natServer` 结构体和接口方法（仅返回 `next.Server(ctx).Request/Close()`），确保项目编译通过，无功能变更
+  - **P1.2 - 接口角色配置**（v1.0.2）：实现 `configureNATInterface()` 和 `disableNATInterface()` 函数，调用 VPP API `Nat44InterfaceAddDelFeature` 配置 inside/outside 角色，集成到 `Request()` 和 `Close()` 方法，验证 VPP 接口配置成功（通过 VPP CLI `show nat44 interfaces` 检查）
+  - **P1.3 - 地址池配置与集成**（v1.0.3）：实现 `configureNATAddressPool()` 函数，调用 VPP API `Nat44AddDelAddressRange` 配置公网 IP 地址池，集成到 `main.go` 的 server 端链中（替换或并列 ACL），端到端测试 NAT 地址转换功能（NSC → 外部服务器 ping 测试）
+
+**Q9: P3（模块本地化）的执行顺序和回退策略？**
+- **A**: 按依赖顺序逐个本地化，每个模块独立验证后再进行下一个：
+  - **P3.1 - 本地化 nat_types**（v1.1.0）：从 govpp 缓存复制 `binapi/nat_types/` 到 `internal/binapi_nat_types/`，创建 go.mod，配置 replace 指令，添加中文注释，编译验证 → Docker 镜像构建 → K8s 部署测试 → 确认所有 NAT 功能无回归
+  - **P3.2 - 本地化 nat44_ed**（v1.1.1）：从 govpp 缓存复制 `binapi/nat44_ed/` 到 `internal/binapi_nat44_ed/`，创建 go.mod，配置 replace 指令（nat44_ed 依赖本地化的 nat_types），添加中文注释，编译验证 → Docker 镜像构建 → K8s 部署测试 → 确认所有 NAT 功能无回归
+  - **回退策略**：任一步骤失败，立即回退到上一稳定版本（v1.0.3 → v1.1.0 → v1.1.1），删除失败的本地化模块，恢复 go.mod 的 replace 指令
+
+**Q10: Git 提交粒度和消息格式？**
+- **A**: 每个子模块完成后立即提交（编译通过 + 基本测试），提交粒度与子模块划分完全对应，便于精确回退。提交消息格式：
+  ```
+  <type>(<scope>): <子模块ID> - <描述> (<版本号>)
+
+  <详细说明>
+  - 关键变更点 1
+  - 关键变更点 2
+  - 验证方式
+  ```
+  **示例**：
+  ```
+  feat(nat): P1.1 - 创建 NAT 框架 (v1.0.1)
+
+  - 创建 internal/nat/server.go 和 common.go
+  - 实现空的 natServer 结构体
+  - Request/Close 方法仅调用 next.Server()
+  - 编译验证通过，无功能变更
+  ```
+  **type**: `feat`（新功能）、`fix`（修复）、`refactor`（重构）、`docs`（文档）
+  **scope**: `nat`（NAT 模块）、`config`（配置）、`localize`（本地化）
+  **回退命令**: `git revert <commit-hash>` 或 `git reset --hard <previous-commit>`
+
+**关键 API 接口**（来自 govpp binapi nat44_ed）：
+
+1. **配置接口角色**：`Nat44InterfaceAddDelFeature`
+   ```go
+   type Nat44InterfaceAddDelFeature struct {
+       IsAdd     bool                           // true = 启用, false = 禁用
+       Flags     nat_types.NatConfigFlags       // NAT_IS_INSIDE(32) 或 NAT_IS_OUTSIDE(16)
+       SwIfIndex interface_types.InterfaceIndex // VPP 接口索引
+   }
+   ```
+
+2. **配置地址池**：`Nat44AddDelAddressRange`
+   ```go
+   type Nat44AddDelAddressRange struct {
+       FirstIPAddress ip_types.IP4Address      // NAT 公网 IP 起始地址
+       LastIPAddress  ip_types.IP4Address      // NAT 公网 IP 结束地址（单 IP 时相同）
+       VrfID          uint32                   // VRF ID（默认 0）
+       IsAdd          bool                     // true = 添加, false = 删除
+       Flags          nat_types.NatConfigFlags // 标志位（默认 0）
+   }
+   ```
+
+3. **静态端口映射**（P4）：`Nat44AddDelStaticMapping`（已标记 Deprecated，但可用）
+   ```go
+   type Nat44AddDelStaticMapping struct {
+       IsAdd             bool                           // true = 添加, false = 删除
+       Flags             nat_types.NatConfigFlags       // NAT_IS_ADDR_ONLY 等
+       LocalIPAddress    ip_types.IP4Address            // 内部服务器 IP
+       ExternalIPAddress ip_types.IP4Address            // 公网 IP
+       Protocol          uint8                          // 协议（6=TCP, 17=UDP）
+       LocalPort         uint16                         // 内部端口
+       ExternalPort      uint16                         // 公网端口
+       ExternalSwIfIndex interface_types.InterfaceIndex // 外部接口索引（可选）
+       VrfID             uint32                         // VRF ID
+       Tag               string                         // 标签（最长 64 字符）
+   }
+   ```
+
+**实施策略调整**：
+- 框架复制：完全参考 `internal/acl/` 的结构（`server.go`、`common.go`）
+- 微调部分：API 调用改为 NAT44 接口，删除 src/dst 交换逻辑
+- 大改部分：无（NAT 比 ACL 更简单，不需要大改）
+
+**VPP 官方文档参考**：
+- **NAT44 ED 插件文档**（VPP 23.02）：https://docs.fd.io/vpp/23.02/developer/plugins/nat44_ed_doc.html
+- **NAT44 ED CLI 参考**：https://s3-docs.fd.io/vpp/23.02/cli-reference/clis/clicmd_src_plugins_nat_nat44-ed.html
+- **VPP NAT Wiki**：https://wiki.fd.io/view/VPP/NAT
+- **关键 CLI 命令示例**（代码实现使用 Binary API，CLI 仅供理解）：
+  ```bash
+  # 启用 NAT44 插件
+  vpp# nat44 enable
+
+  # 配置接口为 inside（内部）/ outside（外部）
+  vpp# set interface nat44 in <interface> out <interface>
+
+  # 添加 NAT 地址池
+  vpp# nat44 add address <public-ip>
+
+  # 查看配置和会话
+  vpp# show nat44 interfaces
+  vpp# show nat44 sessions
+  ```
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - 基础 NAT44 地址转换 (Priority: P1)
@@ -13,7 +205,12 @@
 
 **Why this priority**: 这是 NAT 功能的核心价值，能够独立验证 VPP NAT44 插件与 NSM 的集成，为后续高级功能奠定基础。地址转换是 NAT 的最小可交付功能。
 
-**Independent Test**: 可以通过部署 NAT NSE，从 NSC 发起网络连接到外部服务器，验证源 IP 地址和端口被正确转换，并且能够接收响应数据包。测试包括: (1) NSC → NAT NSE → 外部服务器的连接建立 (2) ICMP ping 测试 (3) TCP 连接测试 (4) 验证 VPP NAT44 会话表中存在转换记录。
+**Incremental Implementation** (详见 Clarifications Q8)：
+- **P1.1** (v1.0.1): NAT 框架创建（空实现，编译通过）
+- **P1.2** (v1.0.2): 接口角色配置（VPP API 调用，VPP CLI 验证）
+- **P1.3** (v1.0.3): 地址池配置与集成（端到端 NAT 转换测试）
+
+**Independent Test**: 可以通过部署 NAT NSE，从 NSC 发起网络连接到外部服务器，验证源 IP 地址和端口被正确转换，并且能够接收响应数据包。测试包括: (1) NSC → NAT NSE → 外部服务器的连接建立 (2) ICMP ping 测试 (3) TCP 连接测试 (4) 验证 VPP NAT44 会话表中存在转换记录。每个子模块可独立回退。
 
 **Acceptance Scenarios**:
 
@@ -49,7 +246,12 @@
 
 **Why this priority**: 模块本地化是长期维护和减少外部依赖的需求，但在基础功能和配置管理实现并验证后进行更为稳妥，避免过早引入模块管理复杂度。
 
-**Independent Test**: 每次本地化一个 NAT 模块后，通过编译项目、运行单元测试、构建 Docker 镜像并在 Kubernetes 中部署验证，确认所有 NAT 功能仍然正常工作。测试包括: (1) Go 编译成功 (2) 单元测试通过 (3) Docker 镜像构建成功 (4) Kubernetes 部署功能测试通过 (5) 版本号正确递增。
+**Incremental Implementation** (详见 Clarifications Q9)：
+- **P3.1** (v1.1.0): 本地化 nat_types（基础类型定义，无逻辑风险）
+- **P3.2** (v1.1.1): 本地化 nat44_ed（依赖本地化的 nat_types）
+- **回退策略**：任一步骤失败立即回退，删除失败模块，恢复 go.mod
+
+**Independent Test**: 每次本地化一个 NAT 模块后，通过编译项目、运行单元测试、构建 Docker 镜像并在 Kubernetes 中部署验证，确认所有 NAT 功能仍然正常工作。测试包括: (1) Go 编译成功 (2) 单元测试通过 (3) Docker 镜像构建成功 (4) Kubernetes 部署功能测试通过 (5) 版本号正确递增。每个子模块可独立回退。
 
 **Acceptance Scenarios**:
 
@@ -106,7 +308,7 @@
 - **FR-011**: 系统必须在每次模块本地化后执行 Git 提交、Docker 镜像构建、镜像版本号递增和功能测试
 - **FR-012**: 系统必须生成清晰的中文日志，记录 NAT 配置加载、会话创建、会话删除、错误情况等关键事件
 - **FR-013**: 系统必须支持可选的静态端口映射配置，将固定的公网 IP:端口映射到内部 IP:端口
-- **FR-014**: 系统必须遵循 ACL 防火墙 NSE 的项目结构和开发流程，最小化代码改动
+- **FR-014**: 系统必须遵循 ACL 防火墙 NSE 的项目结构和开发流程作为参考模板，在 P5 阶段（v1.3.0）彻底删除所有 ACL 相关代码（详见 Q13.1）
 - **FR-015**: 系统必须在 NAT 端口池耗尽时拒绝新连接并记录错误日志
 - **FR-016**: 系统必须支持配置验证，在启动时检测配置错误并拒绝启动
 - **FR-017**: 系统必须为每个 NSC 连接分配唯一的 NAT 会话，避免端口冲突
@@ -163,7 +365,7 @@
 - Kubernetes 集群（用于部署测试）
 - Git 版本控制系统
 - Go 1.23.8 或更高版本
-- 现有的 ACL 防火墙项目代码和文档（作为参考模板）
+- 现有的 ACL 防火墙项目代码和文档（作为参考模板，最终将被删除）
 
 ## Out of Scope
 
@@ -178,3 +380,4 @@
 - 对非 NSM 流量的 NAT 处理（仅处理 NSM 连接）
 - 实时监控或 Prometheus 指标导出（可作为未来增强）
 - 自动化在线模块版本更新同步机制（手动追踪）
+- ACL 防火墙功能的保留或维护（项目最终将完全转型为 NAT 项目）

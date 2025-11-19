@@ -1,350 +1,267 @@
-# NSE 防火墙测试指南 / Firewall Testing Guide
+# VPP NAT44 测试报告
 
-本文档说明如何使用 `nsectl.sh` 和 `firewall-test.sh` 进行 VPP ACL 防火墙功能测试。
+**测试日期**: 2025-11-19
+**镜像版本**: `ifzzh520/vpp-nat44-nat:v1.0.4`
+**测试环境**: samenode-nat (Kubernetes)
 
-## 快速开始 / Quick Start
+---
 
-### 方法 1: 使用 nsectl.sh 测试命令 (推荐)
+## 测试结果总结
+
+### ✅ 测试通过
+
+**v1.0.4 版本成功修复了 VPP NAT44 ED 插件启用问题！**
+
+---
+
+## 问题修复验证
+
+### 问题描述（v1.0.3）
+
+- **错误代码**: VPP API 返回 -126 (`VNET_API_ERROR_UNSUPPORTED`)
+- **错误位置**: `configureNATAddressPool()` 配置地址池时
+- **影响**: alpine 容器无法启动，NAT 服务链无法建立
+
+### 修复方案（v1.0.4）
+
+1. 新增 `enableNAT44Plugin()` 函数
+2. 在 `NewServer()` 初始化时显式启用 NAT44 ED 插件
+3. 确保插件在配置地址池前启用
+
+---
+
+## 测试日志分析
+
+### 1. NAT44 ED 插件启用成功 ✅
+
+**日志时间**: 2025/11/19 07:56:43
+
+```log
+[INFO] [nat_server:enable_plugin] NAT44 ED 插件启用成功
+```
+
+**验证**: 插件在服务器初始化时成功启用，无报错。
+
+---
+
+### 2. NAT 地址池配置成功 ✅
+
+**日志时间**: Nov 19 07:56:45.026
+
+```log
+[INFO] [nat_server:configure_pool] 配置 NAT 地址池成功: 192.168.1.100
+```
+
+**验证**:
+- 公网 IP 192.168.1.100 成功添加到地址池
+- 不再出现 -126 错误
+
+---
+
+### 3. NAT 接口配置成功 ✅
+
+**日志时间**: Nov 19 07:56:45.027
+
+```log
+[INFO] [nat_server:configure] 配置 NAT 接口成功: swIfIndex=2, role=inside
+```
+
+**验证**:
+- 接口索引: 2
+- 接口角色: inside (NSC 侧)
+- 配置成功无报错
+
+---
+
+### 4. NSC 连接成功建立 ✅
+
+**日志时间**: Nov 19 07:56:45.299
+
+```log
+[INFO] successfully connected to nse-composition
+```
+
+**验证**:
+- alpine 客户端成功连接到服务链
+- IP 分配:
+  - NSC (alpine): 172.16.1.101/32
+  - Server (nginx): 172.16.1.100/32
+
+---
+
+## 服务链路径验证
+
+完整的网络服务链路径：
+
+```
+alpine (NSC)
+  ↓
+nsmgr-5v547
+  ↓
+forwarder-vpp-f6pdv
+  ↓
+nse-nat-vpp-5b9c4b76d9-mf9s9 ← 我们的 NAT NSE ✅
+  ↓
+nsmgr-5v547
+  ↓
+forwarder-vpp-f6pdv
+  ↓
+nse-kernel-5d96b8d6d5-tm654 (nginx server)
+```
+
+**验证**:
+- 服务链完整建立
+- NAT NSE 正确集成到服务链中
+- 数据路径通畅
+
+---
+
+## 问题对比
+
+### v1.0.3 (失败)
+
+```log
+❌ VPP API 返回错误: -126（IP: 192.168.1.100）
+❌ Error returned from nat/natServer.Request
+❌ alpine 容器无法启动
+```
+
+### v1.0.4 (成功)
+
+```log
+✅ NAT44 ED 插件启用成功
+✅ 配置 NAT 地址池成功: 192.168.1.100
+✅ 配置 NAT 接口成功: swIfIndex=2, role=inside
+✅ successfully connected to nse-composition
+```
+
+---
+
+## 测试结论
+
+### 修复验证 ✅
+
+1. **NAT44 ED 插件启用**: ✅ 成功
+2. **地址池配置**: ✅ 成功（不再出现 -126 错误）
+3. **接口配置**: ✅ 成功
+4. **NSC 连接建立**: ✅ 成功
+5. **服务链完整性**: ✅ 完整
+
+### 关键改进
+
+- **启动时插件启用**: 确保后续操作正常
+- **错误提前暴露**: 插件启用失败时触发 panic
+- **代码可维护性**: 插件启用逻辑独立封装
+
+---
+
+## 用户实际测试验证 (2025-11-19)
+
+### 基础功能测试 ✅
+
+#### 1. NAT 地址池验证
+```bash
+$ kubectl exec -n ns-nse-composition nse-nat-vpp-5b9c4b76d9-mf9s9 -- vppctl show nat44 addresses
+NAT44 pool addresses:
+192.168.1.100
+  tenant VRF: 0
+NAT44 twice-nat pool addresses:
+```
+**结果**: ✅ 地址池配置正确
+
+#### 2. NAT 接口验证
+```bash
+$ kubectl exec -n ns-nse-composition nse-nat-vpp-5b9c4b76d9-mf9s9 -- vppctl show nat44 interfaces
+NAT44 interfaces:
+ memif1196435762/0 in
+```
+**结果**: ✅ Inside 接口配置正确
+
+#### 3. NSC 网络接口验证
+```bash
+$ kubectl exec -n ns-nse-composition alpine -- ip addr show nsm-1
+3: nsm-1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UNKNOWN qlen 1000
+    link/ether 02:fe:b4:68:1d:9b brd ff:ff:ff:ff:ff:ff
+    inet 172.16.1.101/32 scope global nsm-1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::fe:b4ff:fe68:1d9b/64 scope link
+       valid_lft forever preferred_lft forever
+```
+**结果**: ✅ NSC IP 地址: 172.16.1.101/32
+
+#### 4. Server 网络接口验证
+```bash
+$ kubectl exec -n ns-nse-composition deployment/nse-kernel -- ip addr show | grep -A2 "nse-compos"
+3: nse-compos-tAWd: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UNKNOWN qlen 1000
+    link/ether 02:fe:1e:98:ae:0c brd ff:ff:ff:ff:ff:ff
+    inet 172.16.1.100/32 scope global nse-compos-tAWd
+       valid_lft forever preferred_lft forever
+    inet6 fe80::fe:1eff:fe98:ae0c/64 scope link
+```
+**结果**: ✅ Server IP 地址: 172.16.1.100/32
+
+#### 5. ICMP 连通性测试
+```bash
+$ kubectl exec -n ns-nse-composition alpine -- ping -c 4 172.16.1.100
+PING 172.16.1.100 (172.16.1.100): 56 data bytes
+64 bytes from 172.16.1.100: seq=0 ttl=64 time=0.393 ms
+64 bytes from 172.16.1.100: seq=1 ttl=64 time=0.445 ms
+64 bytes from 172.16.1.100: seq=2 ttl=64 time=0.585 ms
+64 bytes from 172.16.1.100: seq=3 ttl=64 time=0.230 ms
+
+--- 172.16.1.100 ping statistics ---
+4 packets transmitted, 4 packets received, 0% packet loss
+round-trip min/avg/max = 0.230/0.413/0.585 ms
+```
+**结果**: ✅ Ping 成功
+- **丢包率**: 0%
+- **平均延迟**: 0.413ms
+- **最小延迟**: 0.230ms
+- **最大延迟**: 0.585ms
+
+---
+
+## 附录：测试命令
+
+### VPP 验证
 
 ```bash
-cd samenode-firewall
+NAT_POD=$(kubectl get pods -n ns-nse-composition -l app=nse-nat-vpp -o jsonpath='{.items[0].metadata.name}')
 
-# 单独运行测试
-./nsectl.sh test
+# 查看 NAT 地址池
+kubectl exec -n ns-nse-composition $NAT_POD -- vppctl show nat44 addresses
 
-# 完整流程 (部署 -> 等待就绪 -> 测试 -> 收集日志 -> 推送)
-./nsectl.sh full
+# 查看 NAT 接口
+kubectl exec -n ns-nse-composition $NAT_POD -- vppctl show nat44 interfaces
+
+# 查看 NAT 会话
+kubectl exec -n ns-nse-composition $NAT_POD -- vppctl show nat44 sessions
 ```
 
-### 方法 2: 直接运行测试脚本
+### iperf3 性能测试（可选）
 
 ```bash
-cd samenode-firewall
+# 1. 安装 iperf3
+kubectl exec -n ns-nse-composition alpine -- sh -c "apk update && apk add iperf3"
+kubectl exec -n ns-nse-composition deployment/nse-kernel -- sh -c "apt-get update && apt-get install -y iperf3"
 
-# 使用默认命名空间
-./firewall-test.sh
+# 2. 启动服务器
+kubectl exec -n ns-nse-composition deployment/nse-kernel -- sh -c "iperf3 -s -D"
 
-# 指定命名空间
-./firewall-test.sh my-custom-namespace
+# 3. 运行测试
+SERVER_IP=$(kubectl exec -n ns-nse-composition deployment/nse-kernel -- ip addr show | grep 'inet ' | grep nse-compos | awk '{print $2}' | cut -d/ -f1)
+kubectl exec -n ns-nse-composition alpine -- iperf3 -c $SERVER_IP -t 10
+
+# 4. 查看 NAT 会话
+kubectl exec -n ns-nse-composition $NAT_POD -- vppctl show nat44 sessions
+
+# 5. 清理
+kubectl exec -n ns-nse-composition deployment/nse-kernel -- pkill iperf3
 ```
 
-## 测试覆盖 / Test Coverage
-
-`firewall-test.sh` 包含以下测试用例:
-
-| 测试 | 描述 | 验证内容 |
-|------|------|---------|
-| **测试 1** | Pod 就绪检查 | NSC, NSE, 防火墙 Pod 都已就绪 |
-| **测试 2** | ICMP 连通性测试 | NSC ↔ NSE ping 双向连通 |
-| **测试 3** | VPP ACL 规则验证 | VPP ACL 规则已加载 |
-| **测试 4** | 防火墙规则测试 | TCP 端口过滤 (80 阻止, 8080 允许) |
-| **测试 5** | iperf3 性能测试 | TCP 5201 通过防火墙,性能正常 |
-| **测试 6** | SPIRE 身份验证 | SPIRE Agent socket 已挂载 |
-
-## nsectl.sh 命令说明 / Command Reference
-
-### 基本命令
-
-```bash
-# 部署 NSE
-./nsectl.sh apply
-
-# 查看 Pod 状态
-./nsectl.sh get
-
-# 实时监控 Pod (需要 watch 命令)
-./nsectl.sh watch
-
-# 运行功能测试
-./nsectl.sh test
-
-# 收集日志
-./nsectl.sh logs
-
-# 查看 Pod 详情
-./nsectl.sh describe
-
-# 删除命名空间
-./nsectl.sh delete
-
-# 完整流程 (推荐用于远程环境测试)
-./nsectl.sh full
-```
-
-### 高级选项
-
-```bash
-# 指定命名空间
-./nsectl.sh -n my-namespace test
-
-# 指定 kustomize 目录
-./nsectl.sh -k ../other-deployment apply
-
-# 指定 app 标签 (用于多 NSE 环境)
-./nsectl.sh -a nse-firewall-vpp test
-
-# 组合使用
-./nsectl.sh -n test-ns -a my-firewall test
-```
-
-## 测试输出示例 / Test Output Example
-
-```bash
-$ ./nsectl.sh test
-Kube context: kubernetes-admin@kubernetes
-Namespace:    ns-nse-composition
-App label:    app=nse-firewall-vpp
-运行 NSE 特定测试脚本: /path/to/firewall-test.sh
-测试命名空间: ns-nse-composition
-
-========================================
-VPP ACL 防火墙功能测试
-命名空间: ns-nse-composition
-时间: 2025-11-13 12:00:00
-========================================
-
-[TEST] 测试 1: 检查所有 Pod 就绪状态
-[INFO] NSC Pod: alpine
-[INFO] NSE Pod: nse-kernel-abc123
-[INFO] 防火墙 Pod: nse-firewall-vpp-def456
-[INFO] ✓ 测试 1 通过: 所有 Pod 已就绪
-
-[TEST] 测试 2: ICMP 连通性测试 (ping)
-[INFO] 测试 NSC -> NSE (172.16.1.100)
-[INFO] ✓ NSC -> NSE ping 成功
-[INFO] 测试 NSE -> NSC (172.16.1.101)
-[INFO] ✓ NSE -> NSC ping 成功
-[INFO] ✓ 测试 2 通过: ICMP 连通性正常
-
-[TEST] 测试 3: VPP ACL 规则验证
-[INFO] 查询 VPP ACL 规则
-[INFO] ✓ VPP ACL 规则已配置
-[INFO] ✓ 测试 3 通过: VPP ACL 规则已加载
-
-[TEST] 测试 4: 防火墙规则测试 - TCP 端口过滤
-[INFO] 在 NSE 上启动测试 HTTP 服务器 (后台运行)
-[INFO] 测试 TCP 端口 80 (应该被防火墙阻止)
-[INFO] ✓ 端口 80 被阻止 (防火墙规则生效)
-[INFO] 测试 TCP 端口 8080 (应该被允许)
-[INFO] ✓ 端口 8080 可访问 (防火墙规则生效)
-[INFO] ✓ 测试 4 通过: 防火墙 TCP 端口过滤正常
-
-[TEST] 测试 5: iperf3 性能测试 (TCP 5201 - 允许通过)
-[INFO] 检查 iperf3 是否已安装
-[INFO] 在 NSE 上启动 iperf3 服务器 (端口 5201)
-[INFO] 运行 iperf3 客户端测试 (10秒)
-[INFO] ✓ iperf3 性能测试成功 (TCP 5201 通过防火墙)
-[INFO] ✓ 测试 5 通过: iperf3 性能测试正常
-
-[TEST] 测试 6: SPIRE 身份验证检查
-[INFO] 检查 SPIRE Agent socket 挂载
-[INFO] ✓ SPIRE Agent socket 已挂载
-[INFO] ✓ 测试 6 通过: SPIRE 配置检查完成
-
-========================================
-测试结果汇总
-========================================
-[INFO] ✓ 所有测试通过!
-```
-
-## 测试脚本架构 / Test Script Architecture
-
-### 设计原则
-
-1. **通用性**: `nsectl.sh` 与 NSE 类型无关,可用于任何 NSE
-2. **动态性**: 自动从目录名推断 NSE 类型 (例如: `samenode-firewall` → `firewall`)
-3. **可扩展性**: 每个 NSE 目录提供自己的 `<nse-type>-test.sh` 脚本
-4. **一致性**: 所有测试脚本遵循相同的命令行接口 (接受命名空间参数)
-
-### 目录结构
-
-```
-samenode-firewall/
-├── nsectl.sh              # 通用控制脚本
-├── firewall-test.sh       # 防火墙特定测试 (可执行)
-├── kustomization.yaml
-├── client.yaml
-├── server.yaml
-└── logs/
-    ├── cmd-nsc-init.log
-    ├── nse-firewall-vpp.log
-    └── cmdline.log
-```
-
-### 添加新的 NSE 测试脚本
-
-如果你有其他类型的 NSE (例如: NAT, VPN, Proxy),只需:
-
-1. 创建目录: `samenode-nat/`
-2. 复制 `nsectl.sh` 到新目录
-3. 创建测试脚本: `samenode-nat/nat-test.sh`
-4. 赋予执行权限: `chmod +x nat-test.sh`
-5. 运行测试: `./nsectl.sh test`
-
-`nsectl.sh` 会自动识别并调用 `nat-test.sh`!
-
-## 故障排查 / Troubleshooting
-
-### 问题 1: 测试脚本未找到
-
-**错误**:
-```
-未找到测试脚本: /path/to/firewall-test.sh
-```
-
-**解决方案**:
-```bash
-# 检查文件是否存在
-ls -la samenode-firewall/firewall-test.sh
-
-# 如果不存在,创建它
-touch samenode-firewall/firewall-test.sh
-chmod +x samenode-firewall/firewall-test.sh
-```
-
-### 问题 2: 测试失败 - Pod 未就绪
-
-**错误**:
-```
-[ERROR] NSC Pod (alpine) 不存在
-```
-
-**解决方案**:
-```bash
-# 检查 Pod 状态
-kubectl get pod -n ns-nse-composition
-
-# 如果 Pod 不存在,先部署
-./nsectl.sh apply
-
-# 等待 Pod 就绪
-kubectl wait --for=condition=Ready pod -l app=alpine -n ns-nse-composition --timeout=180s
-```
-
-### 问题 3: 测试失败 - 端口访问异常
-
-**错误**:
-```
-[ERROR] ✗ 端口 80 可访问 (防火墙规则未生效)
-```
-
-**解决方案**:
-```bash
-# 1. 检查 VPP ACL 规则
-kubectl exec -n ns-nse-composition deploy/nse-firewall-vpp -- vppctl show acl-plugin acl
-
-# 2. 检查 ConfigMap 配置
-kubectl get cm firewall-config-file -n ns-nse-composition -o yaml
-
-# 3. 重新部署防火墙
-kubectl delete pod -n ns-nse-composition -l app=nse-firewall-vpp
-./nsectl.sh apply
-```
-
-### 问题 4: iperf3 未安装
-
-**警告**:
-```
-[WARN] ⚠ iperf3 安装失败,跳过性能测试
-```
-
-**解决方案**:
-```bash
-# 手动安装 iperf3
-kubectl exec -n ns-nse-composition alpine -- apk add --no-cache iperf3
-kubectl exec -n ns-nse-composition deploy/nse-kernel -- apk add --no-cache iperf3
-
-# 重新运行测试
-./nsectl.sh test
-```
-
-## CI/CD 集成 / CI/CD Integration
-
-### GitHub Actions 示例
-
-```yaml
-name: NSE Firewall Tests
-
-on:
-  push:
-    branches: [ 002-acl-localization ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Kubernetes
-        uses: engineerd/setup-kind@v0.5.0
-
-      - name: Deploy NSE
-        run: |
-          cd samenode-firewall
-          ./nsectl.sh apply
-
-      - name: Run Tests
-        run: |
-          cd samenode-firewall
-          ./nsectl.sh test
-
-      - name: Collect Logs
-        if: always()
-        run: |
-          cd samenode-firewall
-          ./nsectl.sh logs
-
-      - name: Upload Logs
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-logs
-          path: samenode-firewall/logs/
-```
-
-### Jenkins Pipeline 示例
-
-```groovy
-pipeline {
-    agent any
-    stages {
-        stage('Deploy') {
-            steps {
-                sh 'cd samenode-firewall && ./nsectl.sh apply'
-            }
-        }
-        stage('Test') {
-            steps {
-                sh 'cd samenode-firewall && ./nsectl.sh test'
-            }
-        }
-        stage('Collect Logs') {
-            steps {
-                sh 'cd samenode-firewall && ./nsectl.sh logs'
-                archiveArtifacts artifacts: 'samenode-firewall/logs/**', allowEmptyArchive: true
-            }
-        }
-    }
-    post {
-        always {
-            sh 'cd samenode-firewall && ./nsectl.sh delete || true'
-        }
-    }
-}
-```
-
-## 最佳实践 / Best Practices
-
-1. **自动化测试**: 在 CI/CD 流水线中使用 `./nsectl.sh test`
-2. **测试隔离**: 为每个测试运行使用独立的命名空间
-3. **日志保存**: 测试失败时使用 `./nsectl.sh logs` 收集诊断信息
-4. **完整流程**: 在远程环境使用 `./nsectl.sh full` 一键部署和测试
-5. **定期清理**: 测试完成后使用 `./nsectl.sh delete` 清理资源
-
-## 相关文档 / Related Documentation
-
-- [README.md](README.md) - NSE 防火墙部署指南
-- [config-file.yaml](config-file.yaml) - ACL 防火墙规则配置
-- [../../README.md](../../README.md) - 项目总览和技术栈
+---
+
+**测试人员**: Claude Code + User
+**审核状态**: 通过 ✅
+**版本状态**: v1.0.4 已推送到 Docker Hub
+**实际验证**: 用户在真实 K8s 环境中验证通过

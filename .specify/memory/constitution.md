@@ -1,30 +1,6 @@
-<!--
-SYNC IMPACT REPORT
-==================
-版本变更: 1.0.0 → 1.1.0
-变更类型: MINOR（新增根目录文件清单章节，扩展简洁架构原则）
-
-修改的原则:
-- 扩展: II. 简洁架构原则 - 新增"根目录文件清单"子章节，逐个分析所有文件/目录并标注保留/删除决策
-
-新增章节:
-- 根目录文件清单：详细列出18个文件/目录的用途、关系和保留/删除建议
-
-需要同步更新的模板文件:
-✅ .specify/templates/plan-template.md - 需确保"宪章合规性检查"与7条原则一致
-✅ .specify/templates/spec-template.md - 需增加"中文优先"和"简洁架构"约束
-✅ .specify/templates/tasks-template.md - 需增加"代码一致性验证"任务类型
-⚠ .specify/templates/commands/*.md - 待检查是否有硬编码的原则引用
-
-执行建议:
-- 立即删除: .github/, .license/, .templateignore, .yamllint.yml（高优先级）
-- 稍后考虑删除: staticcheck.conf（低优先级）
-- 必须保留: main.go, go.mod, go.sum, Dockerfile, internal/, README.md等核心文件
--->
-
 # cmd-nse-firewall-vpp 项目宪章
 
-本项目是基于 Network Service Mesh (NSM) 框架和 VPP（Vector Packet Processing）技术的防火墙网络服务端点实现，提供高性能的网络流量ACL控制能力。
+本项目是基于 Network Service Mesh (NSM) 框架和 VPP（Vector Packet Processing）技术的网络功能网络服务端点实现，提供高性能的网络流量处理。
 
 ---
 
@@ -80,7 +56,7 @@ func initFirewallConfig() error {
 
 **标准目录结构**:
 ```
-cmd-nse-firewall-vpp/
+./
 ├── main.go              # 主程序入口
 ├── internal/            # 内部实现（按需使用）
 ├── .specify/            # SpecKit配置
@@ -90,52 +66,9 @@ cmd-nse-firewall-vpp/
 └── README.md            # 项目文档
 ```
 
-#### 根目录文件清单（强制遵守）
-
-以下为项目根目录所有文件和目录的详细分析，每项标注是否保留/删除及理由。
-
-| # | 文件/目录 | 类型 | 用途说明 | 与项目关系 | 决策 | 理由 | 删除优先级 |
-|---|----------|------|---------|-----------|------|------|-----------|
-| 1 | **main.go** | 文件 | 项目主程序入口（380行），实现完整的NSM防火墙端点功能 | 核心代码 | ✅ **必须保留** | 项目核心业务逻辑，删除将导致功能完全丧失 | N/A |
-| 2 | **go.mod** | 文件 | Go模块依赖定义文件 | 依赖管理 | ✅ **必须保留** | 依赖稳定性原则要求，构建系统的基础 | N/A |
-| 3 | **go.sum** | 文件 | Go模块依赖校验和文件 | 依赖管理 | ✅ **必须保留** | 确保依赖完整性和可重复构建 | N/A |
-| 4 | **Dockerfile** | 文件 | 容器化构建配置，支持test/debug/release多阶段构建 | 构建工具 | ✅ **必须保留** | 项目唯一的容器化构建方式，测试依赖此文件 | N/A |
-| 5 | **internal/** | 目录 | 内部实现目录，包含imports子目录 | 核心代码 | ✅ **必须保留** | Go模块内部实现，符合标准Go项目结构 | N/A |
-| 6 | **README.md** | 文件 | 项目文档，说明构建、使用、测试、调试方法 | 项目文档 | ✅ **必须保留** | 项目的使用说明文档，需后续改为中文 | N/A |
-| 7 | **.gitignore** | 文件 | Git忽略规则配置 | 版本控制 | ✅ **必须保留** | 版本控制必需文件，防止临时文件提交 | N/A |
-| 8 | **.git/** | 目录 | Git版本控制元数据 | 版本控制 | ✅ **必须保留** | 版本控制系统核心目录，不可删除 | N/A |
-| 9 | **LICENSE** | 文件 | Apache 2.0开源许可证 | 法律文档 | ✅ **必须保留** | 开源项目法律保护文件，删除将导致许可证不明 | N/A |
-| 10 | **SECURITY.md** | 文件 | 安全漏洞报告指南 | 项目文档 | ✅ **保留** | 提供安全问题反馈渠道，标准开源项目文档 | N/A |
-| 11 | **.golangci.yml** | 文件 | golangci-lint静态检查配置 | 代码质量工具 | ✅ **保留** | 代码质量标准要求的静态检查工具配置 | N/A |
-| 12 | **.specify/** | 目录 | SpecKit配置目录，包含宪章、模板、脚本 | 项目管理 | ✅ **必须保留** | 宪章文件所在目录，项目治理核心 | N/A |
-| 13 | **.claude/** | 目录 | Claude Code工作目录，存储操作日志和上下文 | AI工作文件 | ✅ **必须保留** | AI辅助开发工作文件，记录决策和操作历史 | N/A |
-| 14 | **.github/** | 目录 | GitHub CI/CD配置（workflows子目录） | CI/CD配置 | ❌ **必须删除** | 违反"简洁架构原则"，CI/CD配置与核心功能无关 | **高优先级** |
-| 15 | **.license/** | 目录 | 许可证模板目录（README.md, template.txt） | 模板文件 | ❌ **必须删除** | 仅用于模板项目，本项目已有LICENSE文件，冗余 | **高优先级** |
-| 16 | **.templateignore** | 文件 | 模板项目忽略规则（内容：README.md） | 模板文件 | ❌ **必须删除** | 仅用于模板项目初始化，本项目已实例化，无用 | **高优先级** |
-| 17 | **.yamllint.yml** | 文件 | YAML格式检查工具配置 | 代码质量工具 | ❌ **建议删除** | 项目无YAML配置文件，此工具配置无实际用途 | **高优先级** |
-| 18 | **staticcheck.conf** | 文件 | staticcheck静态分析工具配置 | 代码质量工具 | ⚠️ **可选删除** | .golangci.yml已包含静态检查，此文件可能冗余 | **低优先级** |
-
-**决策汇总**:
-- ✅ **必须保留**（13项）: main.go, go.mod, go.sum, Dockerfile, internal/, README.md, .gitignore, .git/, LICENSE, SECURITY.md, .golangci.yml, .specify/, .claude/
-- ❌ **必须删除**（4项）: .github/, .license/, .templateignore, .yamllint.yml
-- ⚠️ **可选删除**（1项）: staticcheck.conf
-
-**执行建议**:
-1. **立即执行**（高优先级删除）:
-   ```bash
-   rm -rf .github/
-   rm -rf .license/
-   rm .templateignore
-   rm .yamllint.yml
-   ```
-
-2. **评估后执行**（低优先级）:
-   - 检查staticcheck.conf是否被实际使用
-   - 如未使用则删除: `rm staticcheck.conf`
 
 3. **后续改进**:
    - 将README.md内容改为中文（符合"中文优先原则"）
-   - 验证internal/imports/目录的必要性
 
 ---
 
@@ -170,10 +103,10 @@ cmd-nse-firewall-vpp/
 
 ### IV. 功能完整性原则（强制遵守）
 
-**目标**: 严格保持项目的完整功能不被改变
+**目标**: 严格保持项目的通用功能不被改变
 
 **禁止破坏性变更**:
-- 不允许删除现有功能模块
+- 不允许删除现有通用功能模块
 - 不允许改变核心业务流程
 - 不允许移除已有的API端点
 

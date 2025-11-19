@@ -1,0 +1,239 @@
+# Phase 0: Research - VPP NAT 网络服务端点
+
+**生成日期**: 2025-01-13
+**输入**: [spec.md](./spec.md) + 明确化问答 (Q1-Q10)
+
+## 研究目标
+
+解决实施前的技术未知项，确认 VPP NAT44 API 的使用方式、与 ACL 实现的差异、以及模块本地化的可行性。
+
+## 关键技术研究
+
+### 1. VPP NAT44 ED 插件架构
+
+**研究问题**: VPP NAT44 ED 插件的工作原理和配置方式？
+
+**研究结论**:
+- **接口角色模型**: NAT44 使用 inside/outside 接口角色，而非 ACL 的双向规则
+- **会话管理**: VPP 自动维护 NAT 会话表（session table），记录地址转换映射
+- **反向转换**: VPP 自动处理反向路径的地址转换，无需手动配置反向规则
+- **端口分配**: VPP 自动分配可用端口，避免端口冲突
+
+**参考文档**:
+- VPP NAT44 ED 插件文档: https://docs.fd.io/vpp/23.02/developer/plugins/nat44_ed_doc.html
+- VPP NAT44 ED CLI 参考: https://s3-docs.fd.io/vpp/23.02/cli-reference/clis/clicmd_src_plugins_nat_nat44-ed.html
+- VPP NAT Wiki: https://wiki.fd.io/view/VPP/NAT
+
+### 2. govpp Binary API 映射
+
+**研究问题**: VPP CLI 命令如何映射到 govpp Binary API？
+
+**研究结论**:
+
+| VPP CLI 命令 | govpp Binary API | 用途 |
+|--------------|------------------|------|
+| `set interface nat44 in <if> out <if>` | `Nat44InterfaceAddDelFeature` | 配置接口角色（inside/outside） |
+| `nat44 add address <ip>` | `Nat44AddDelAddressRange` | 配置 NAT 公网 IP 地址池 |
+| `nat44 add static mapping ...` | `Nat44AddDelStaticMapping` | 配置静态端口映射（P4） |
+| `show nat44 interfaces` | `Nat44InterfaceDump` | 查询接口配置 |
+| `show nat44 sessions` | `Nat44UserSessionDump` | 查询 NAT 会话 |
+
+**关键 API 结构体**:
+
+```go
+// 1. 配置接口角色
+type Nat44InterfaceAddDelFeature struct {
+    IsAdd     bool                           // true = 启用, false = 禁用
+    Flags     nat_types.NatConfigFlags       // NAT_IS_INSIDE(32) 或 NAT_IS_OUTSIDE(16)
+    SwIfIndex interface_types.InterfaceIndex // VPP 接口索引
+}
+
+// 2. 配置地址池
+type Nat44AddDelAddressRange struct {
+    FirstIPAddress ip_types.IP4Address      // NAT 公网 IP 起始地址
+    LastIPAddress  ip_types.IP4Address      // NAT 公网 IP 结束地址
+    VrfID          uint32                   // VRF ID（默认 0）
+    IsAdd          bool                     // true = 添加, false = 删除
+    Flags          nat_types.NatConfigFlags // 标志位（默认 0）
+}
+
+// 3. 静态端口映射（P4）
+type Nat44AddDelStaticMapping struct {
+    IsAdd             bool                           // true = 添加, false = 删除
+    Flags             nat_types.NatConfigFlags       // NAT_IS_ADDR_ONLY 等
+    LocalIPAddress    ip_types.IP4Address            // 内部服务器 IP
+    ExternalIPAddress ip_types.IP4Address            // 公网 IP
+    Protocol          uint8                          // 协议（6=TCP, 17=UDP）
+    LocalPort         uint16                         // 内部端口
+    ExternalPort      uint16                         // 公网端口
+    ExternalSwIfIndex interface_types.InterfaceIndex // 外部接口索引（可选）
+    VrfID             uint32                         // VRF ID
+    Tag               string                         // 标签（最长 64 字符）
+}
+```
+
+**数据来源**: govpp binapi 源代码
+- `/root/go/pkg/mod/github.com/networkservicemesh/govpp@v0.0.0-20240328101142-8a444680fbba/binapi/nat_types/nat_types.ba.go`
+- `/root/go/pkg/mod/github.com/networkservicemesh/govpp@v0.0.0-20240328101142-8a444680fbba/binapi/nat44_ed/nat44_ed.ba.go`
+
+### 3. ACL vs NAT 实现差异
+
+**研究问题**: NAT 实现与 ACL 防火墙的主要差异是什么？
+
+**研究结论**:
+
+| 维度 | ACL 实现 | NAT 实现 | 影响 |
+|------|---------|---------|------|
+| **规则方向** | 需要双向规则（ingress + egress） | 仅需配置接口角色（inside/outside） | NAT 更简单 |
+| **src/dst 交换** | 出站规则需手动交换 src/dst | VPP 自动处理反向转换 | NAT 无需交换逻辑 |
+| **代码行数** | ~200 行（`create()` + `aclAdd()` + `addACLToACLList()`） | ~50 行（`configureNATInterface()` + `configureNATAddressPool()`） | NAT 代码量减少 75% |
+| **复杂度** | 4/5（需理解 ACL 规则语法） | 2/5（仅需配置接口和 IP） | NAT 更易实现 |
+| **会话管理** | 无（ACL 是无状态的） | VPP 自动维护会话表 | NAT 更智能 |
+
+**参考代码**: `internal/acl/common.go:156-184` (aclAdd 函数的 src/dst 交换逻辑)
+
+### 4. NSE 双接口架构
+
+**研究问题**: NSE 的双接口架构如何影响 NAT 配置？
+
+**研究结论**:
+- **Interface A (server 端)**: 连接 NSC，配置为 NAT **inside** 接口（内部网络侧）
+- **Interface B (client 端)**: 连接下游 NSE 或外网，配置为 NAT **outside** 接口（外部网络侧）
+- **xconnect**: VPP 在两个接口之间创建 L2 桥接，NAT 在桥接过程中执行地址转换
+- **数据流**: NSC → Interface A (inside) → SNAT 转换 → xconnect → Interface B (outside) → 外网
+
+**数据流架构图**:
+```
+NSC (内网)
+   ↓ (memif/kernel)
+Interface A (inside, NAT enabled)
+   ↓ (SNAT 转换: 内部IP/端口 → 公网IP/端口)
+xconnect (L2 bridge)
+   ↓
+Interface B (outside, NAT enabled)
+   ↓ (memif/kernel)
+下游 NSE / 外网
+```
+
+**参考代码**: `main.go:210-248` (endpoint 链构造逻辑)
+
+### 5. 模块本地化可行性
+
+**研究问题**: govpp binapi 模块本地化是否可行？有何风险？
+
+**研究结论**:
+- **可行性**: ✅ 已在 ACL 本地化中验证（`specs/002-acl-localization/spec.md`）
+- **依赖关系**:
+  - `nat44_ed` 依赖 `nat_types`（基础类型定义）
+  - `nat44_ed` 依赖 `interface_types` 和 `ip_types`（来自 govpp 核心）
+- **本地化顺序**: 必须先本地化 `nat_types`，再本地化 `nat44_ed`
+- **风险点**:
+  - govpp 核心类型（`interface_types`, `ip_types`）不本地化，保持外部引用
+  - go.mod replace 指令必须正确配置，否则编译失败
+  - 版本不一致可能导致 API 不兼容
+
+**本地化模板** (基于 ACL 本地化经验):
+```bash
+# 1. 复制源代码
+cp -r /root/go/pkg/mod/github.com/networkservicemesh/govpp@v0.0.0-20240328101142-8a444680fbba/binapi/nat_types \
+      internal/binapi_nat_types
+
+# 2. 创建独立 go.mod
+cd internal/binapi_nat_types
+go mod init github.com/ifzzh/cmd-nse-template/internal/binapi_nat_types
+
+# 3. 配置根 go.mod replace 指令
+replace github.com/networkservicemesh/govpp/binapi/nat_types => ./internal/binapi_nat_types
+```
+
+### 6. 配置管理策略
+
+**研究问题**: NAT 配置如何从 ConfigMap 或环境变量加载？
+
+**研究结论**:
+- **参考模板**: `internal/acl/` 使用 `config-file.yaml` 加载 ACL 规则
+- **NAT 配置项**:
+  - 公网 IP 地址池（YAML 数组或逗号分隔字符串）
+  - 端口范围（默认 1024-65535）
+  - 静态端口映射规则（P4）
+- **配置示例**:
+  ```yaml
+  nat:
+    public_ips:
+      - "203.0.113.10"
+      - "203.0.113.11"
+    port_range:
+      start: 1024
+      end: 65535
+    static_mappings:  # P4
+      - public_ip: "203.0.113.10"
+        public_port: 8080
+        internal_ip: "192.168.1.10"
+        internal_port: 80
+        protocol: tcp
+  ```
+
+**实施策略**: P2 阶段实现配置加载逻辑，复用 ACL 的 `envconfig` 库
+
+### 7. 测试验证策略
+
+**研究问题**: 如何验证 NAT 功能正确性？
+
+**研究结论**:
+
+**单元测试**:
+- Mock VPP API 调用，验证接口配置和地址池配置的参数正确性
+- 测试框架：Go 标准 `testing` 包 + `github.com/stretchr/testify/mock`
+
+**VPP CLI 验证**:
+```bash
+# 检查接口配置
+vpp# show nat44 interfaces
+# 预期输出: Interface A = inside, Interface B = outside
+
+# 检查地址池
+vpp# show nat44 addresses
+# 预期输出: 公网 IP 地址列表
+
+# 检查会话
+vpp# show nat44 sessions
+# 预期输出: 内部IP:端口 → 公网IP:端口 映射
+```
+
+**端到端测试**:
+1. 部署 NAT NSE 到 Kubernetes
+2. NSC 发起 ping 到外部服务器（如 8.8.8.8）
+3. 在外部服务器抓包，验证源 IP 是 NAT 公网 IP
+4. 验证 NSC 能收到响应数据包
+
+**回退测试**:
+1. 提交 P1.1 → 验证编译通过 → 无功能变更
+2. 提交 P1.2 → 验证 VPP 接口配置 → 未配置地址池，无 NAT 转换
+3. 提交 P1.3 → 验证端到端 NAT 转换 → 完整功能
+
+## 技术风险与缓解
+
+| 风险 | 影响 | 概率 | 缓解措施 |
+|------|------|------|---------|
+| VPP NAT44 API 变更 | 高 | 低 | govpp 版本已锁定，P3 本地化后无外部依赖 |
+| 端口耗尽 | 中 | 中 | P2 配置端口范围，P1 记录端口耗尽错误日志 |
+| 会话表内存溢出 | 高 | 低 | 使用 VPP 默认会话超时配置（TCP 7200s, UDP 300s） |
+| 模块本地化失败 | 中 | 低 | P3.1/P3.2 独立验证，失败立即回退 |
+| NAT 与 ACL 冲突 | 高 | 低 | NAT 并列于 ACL，各自独立配置接口 |
+| 静态映射配置错误 | 低 | 中 | P2 配置验证逻辑，P4 严格测试 |
+
+## 未解决问题
+
+**无**：所有技术未知项已通过研究和明确化问答解决。
+
+## 研究总结
+
+基于对 VPP NAT44 ED 插件、govpp Binary API、ACL 实现差异、NSE 双接口架构、模块本地化可行性和测试验证策略的研究，确认技术方案可行：
+
+1. **NAT 比 ACL 更简单**：代码量减少 75%，无需 src/dst 交换逻辑
+2. **VPP 官方实现优势明显**：自动会话管理、端口分配、反向转换
+3. **模块本地化已验证**：ACL 本地化成功经验可直接复用
+4. **增量交付可行**：P1.1/P1.2/P1.3 和 P3.1/P3.2 独立可验证
+5. **回退策略清晰**：每个子模块可独立回退，风险可控
+
+**下一步**: 进入 Phase 1（设计阶段），生成 data-model.md、contracts/ 和 quickstart.md。
