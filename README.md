@@ -37,7 +37,7 @@ A high-performance NAT44 (Network Address Translation) Network Service Endpoint 
 - 🔐 **SPIFFE/SPIRE 认证**: 零信任安全架构，自动身份验证
 - 📊 **OpenTelemetry 可观测性**: 内置 metrics 和 traces 支持
 - 🚀 **云原生部署**: Kubernetes 原生部署，支持 Kustomize
-- 📦 **容器化**: Docker 镜像 `ifzzh520/vpp-nat44-nat:v1.0.5`
+- 📦 **容器化**: Docker 镜像 `ifzzh520/vpp-nat44-nat:v1.0.6`
 
 ### 性能优势
 - ⚡ **高吞吐量**: 基于 VPP 的用户态数据平面，线速转发
@@ -252,6 +252,64 @@ cmd-nse-firewall-vpp/
 ---
 
 ## 🔄 版本历史 / Version History
+
+### v1.0.6 (2025-11-20) - L3 路由模式迁移 ⭐
+
+**重大变更**：
+- 🔄 **从 L2 Xconnect 迁移到 L3 路由模式**
+- 🎯 **解决 NAT 会话无法创建的根本问题**（v1.0.5 接口虽配置但会话数仍为 0）
+
+**根本原因**：
+- L2 xconnect 在数据链路层直接转发，绕过 L3 路由处理
+- NAT44 ED 插件只注册在 `ip4-unicast` feature arc（L3 层）
+- L2 xconnect 模式下数据包未经过 `ip4-lookup`，NAT 无法被触发
+
+**技术方案**：
+- ❌ 移除：`xconnect.NewServer()` 和 `xconnect.NewClient()`
+- ✅ 新增：`ipaddress.NewServer()` 和 `routes.NewServer()` (服务器链)
+- ✅ 新增：`ipaddress.NewClient()` 和 `routes.NewClient()` (客户端链)
+
+**数据包路径变化**：
+```diff
+- L2 模式：ethernet-input → l2-input → l2-xconnect → l2-output ❌ (绕过 NAT)
++ L3 模式：ethernet-input → ip4-input → ip4-lookup → nat44-ed-in2out → ip4-rewrite ✅
+```
+
+**文件变更**：
+- 修改：`main.go` (移除 xconnect，添加 ipaddress + routes)
+- 修改：`internal/imports/imports_linux.go` (更新导入列表)
+- 修改：`samenode-nat/nse-nat/nat.yaml` (镜像版本升级到 v1.0.6)
+- 新增：`samenode-nat/CHANGELOG-v1.0.6.md` (详细变更日志)
+
+**Docker 镜像**：
+- 镜像：`ifzzh520/vpp-nat44-nat:v1.0.6`
+
+**预期效果**：
+```bash
+# L3 IP 地址配置
+$ vppctl show interface address
+memif1013904223/0 (up):
+  L3 10.60.1.1/24                  ← L3 IP 地址 ✓
+memif1196435762/0 (up):
+  L3 10.60.2.1/24                  ← L3 IP 地址 ✓
+
+# 路由表
+$ vppctl show ip fib
+ipv4-VRF:0, fib_index:0
+  10.60.1.0/24 → memif1013904223/0 ✓
+  10.60.2.0/24 → memif1196435762/0 ✓
+
+# NAT 会话
+$ vppctl show nat44 sessions
+NAT44 ED sessions:
+-------- thread 0 vpp_main: X sessions -------- ✓ (X > 0)
+```
+
+**参考资料**：
+- `.claude/vpp-acl-nat-xconnect-research.md` - ACL vs NAT 工作机制研究
+- `cmd-nse-vl3-vpp` - L3 路由模式参考实现
+
+---
 
 ### v1.0.5 (2025-11-19) - NAT Outside 接口配置修复
 

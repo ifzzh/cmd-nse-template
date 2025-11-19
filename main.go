@@ -30,9 +30,10 @@ import (
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 
 	// NSM SDK - VPP集成
+	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/connectioncontext/ipcontext/ipaddress"
+	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/connectioncontext/ipcontext/routes"
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/mechanisms/memif"
 	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/up"
-	"github.com/networkservicemesh/sdk-vpp/pkg/networkservice/xconnect"
 
 	// NSM SDK - 核心功能
 	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/client"
@@ -216,15 +217,18 @@ func main() {
 		endpoint.WithName(config.Name),                                 // 端点名称
 		endpoint.WithAuthorizeServer(authorize.NewServer()),            // 授权服务器
 		endpoint.WithAdditionalFunctionality(
-			// 基础功能链（接收/发送文件描述符、接口管理、交叉连接等）
+			// 基础功能链（接收/发送文件描述符、接口管理、L3 路由和 NAT 转发等）
 			recvfd.NewServer(),                           // 接收文件描述符
 			sendfd.NewServer(),                           // 发送文件描述符
 			up.NewServer(ctx, vppConn),                   // VPP接口UP状态管理
 			clienturl.NewServer(&config.ConnectTo),       // 客户端连接URL
-			xconnect.NewServer(vppConn),                  // VPP交叉连接（L2转发）
+			ipaddress.NewServer(vppConn),                 // 为接口配置 IP 地址（L3 模式）
 			nat.NewServer(vppConn, []net.IP{net.ParseIP("192.168.1.100")}), // NAT44 地址转换 ← 核心功能（硬编码公网 IP）
 			mechanisms.NewServer(map[string]networkservice.NetworkServiceServer{
-				memif.MECHANISM: chain.NewNetworkServiceServer(memif.NewServer(ctx, vppConn)), // memif共享内存接口
+				memif.MECHANISM: chain.NewNetworkServiceServer(
+					memif.NewServer(ctx, vppConn),      // memif共享内存接口
+					routes.NewServer(vppConn),          // 配置路由表（L3 模式）
+				),
 			}),
 			// 连接服务器（处理到其他NSE的连接）
 			connect.NewServer(
@@ -240,7 +244,8 @@ func main() {
 						passthrough.NewClient(config.Labels),        // 标签透传
 						up.NewClient(ctx, vppConn),                  // VPP接口UP（客户端）
 						nat.NewClient(vppConn),                      // NAT44 接口配置（客户端侧，配置为 outside）
-						xconnect.NewClient(vppConn),                 // VPP交叉连接（客户端）
+						ipaddress.NewClient(vppConn),                // 为接口配置 IP 地址（客户端，L3 模式）
+						routes.NewClient(vppConn),                   // 配置路由表（客户端，L3 模式）
 						memif.NewClient(ctx, vppConn),               // memif接口（客户端）
 						sendfd.NewClient(),                          // 发送FD（客户端）
 						recvfd.NewClient(),                          // 接收FD（客户端）
