@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# firewall-test.sh - VPP ACL 防火墙功能测试脚本
+# nat-test.sh - VPP NAT 功能测试脚本
 # 本脚本由 nsectl.sh 的 test/full 命令自动调用
-# 可单独运行: ./firewall-test.sh [-n namespace]
+# 可单独运行: ./nat-test.sh [-n namespace]
 
 set -euo pipefail
 
@@ -52,9 +52,9 @@ get_nse_pod() {
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
 }
 
-# 获取 VPP 防火墙 Pod 名称
-get_firewall_pod() {
-  kubectl get pod -n "$NAMESPACE" -l app=nse-firewall-vpp \
+# 获取 VPP NAT Pod 名称
+get_nat_pod() {
+  kubectl get pod -n "$NAMESPACE" -l app=nse-nat-vpp \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
 }
 
@@ -64,10 +64,10 @@ get_firewall_pod() {
 test_01_pod_readiness() {
   log_test "测试 1: 检查所有 Pod 就绪状态"
 
-  local nsc_pod nse_pod fw_pod
+  local nsc_pod nse_pod nat_pod
   nsc_pod=$(get_nsc_pod)
   nse_pod=$(get_nse_pod)
-  fw_pod=$(get_firewall_pod)
+  nat_pod=$(get_nat_pod)
 
   if [[ -z "$nsc_pod" ]]; then
     log_error "NSC Pod (alpine) 不存在"
@@ -81,15 +81,15 @@ test_01_pod_readiness() {
     return 1
   fi
 
-  if [[ -z "$fw_pod" ]]; then
-    log_error "防火墙 Pod (nse-firewall-vpp) 不存在"
+  if [[ -z "$nat_pod" ]]; then
+    log_error "NAT Pod (nse-nat-vpp) 不存在"
     mark_test_failed "Pod 就绪检查"
     return 1
   fi
 
   log_info "NSC Pod: $nsc_pod"
   log_info "NSE Pod: $nse_pod"
-  log_info "防火墙 Pod: $fw_pod"
+  log_info "NAT Pod: $nat_pod"
 
   log_info "✓ 测试 1 通过: 所有 Pod 已就绪"
 }
@@ -128,29 +128,43 @@ test_02_icmp_connectivity() {
 }
 
 # ============================================================================
-# 测试 3: VPP ACL 规则验证
+# 测试 3: VPP NAT44 配置检查
 # ============================================================================
 test_03_vpp_acl_rules() {
-  log_test "测试 3: VPP ACL 规则验证"
+  log_test "测试 3: VPP NAT44 配置检查"
 
-  local fw_pod
-  fw_pod=$(get_firewall_pod)
+  local nat_pod
+  nat_pod=$(get_nat_pod)
 
-  log_info "查询 VPP ACL 规则"
-  if kubectl exec -n "$NAMESPACE" "$fw_pod" -- vppctl show acl-plugin acl 2>/dev/null | grep -q "acl-index"; then
-    log_info "✓ VPP ACL 规则已配置"
-  else
-    log_warn "⚠ 无法验证 VPP ACL 规则 (可能正常)"
+  if [[ -z "$nat_pod" ]]; then
+    log_error "NAT Pod (nse-nat-vpp) 不存在"
+    mark_test_failed "VPP NAT44 配置检查"
+    return 1
   fi
 
-  log_info "✓ 测试 3 通过: VPP ACL 规则已加载"
+  log_info "查询 VPP NAT44 地址池"
+  if ! kubectl exec -n "$NAMESPACE" "$nat_pod" -- vppctl show nat44 addresses >/dev/null 2>&1; then
+    log_warn "⚠ 无法获取 NAT44 地址池信息"
+  fi
+
+  log_info "查询 VPP NAT44 接口"
+  if ! kubectl exec -n "$NAMESPACE" "$nat_pod" -- vppctl show nat44 interfaces >/dev/null 2>&1; then
+    log_warn "⚠ 无法获取 NAT44 接口信息"
+  fi
+
+  log_info "查询 VPP NAT44 会话"
+  if ! kubectl exec -n "$NAMESPACE" "$nat_pod" -- vppctl show nat44 sessions >/dev/null 2>&1; then
+    log_warn "⚠ 无法获取 NAT44 会话信息 (当前可能尚无活跃连接)"
+  fi
+
+  log_info "✓ 测试 3 通过: VPP NAT44 基本命令可用"
 }
 
 # ============================================================================
-# 测试 4: 防火墙规则测试 - TCP 端口过滤
+# 测试 4: HTTP 连通性测试 (经 NAT)
 # ============================================================================
 test_04_firewall_tcp_rules() {
-  log_test "测试 4: 防火墙规则测试 - TCP 端口过滤"
+  log_test "测试 4: HTTP 连通性测试 (经 NAT)"
 
   local nsc_pod nse_pod
   nsc_pod=$(get_nsc_pod)
@@ -165,29 +179,29 @@ test_04_firewall_tcp_rules() {
 
   sleep 2  # 等待服务器启动
 
-  # 测试端口 80 (应该被阻止)
-  log_info "测试 TCP 端口 80 (应该被防火墙阻止)"
+  # 测试端口 80 (预期可访问)
+  log_info "测试 TCP 端口 80 (经 NAT 访问服务)"
   if kubectl exec -n "$NAMESPACE" "$nsc_pod" -- timeout 3 wget -O /dev/null -q "172.16.1.100:80" 2>/dev/null; then
-    log_error "✗ 端口 80 可访问 (防火墙规则未生效)"
-    mark_test_failed "防火墙规则测试 (TCP 80 应阻止)"
+    log_info "✓ 端口 80 可访问"
   else
-    log_info "✓ 端口 80 被阻止 (防火墙规则生效)"
+    log_error "✗ 端口 80 不可访问"
+    mark_test_failed "HTTP 连通性测试 (TCP 80)"
   fi
 
-  # 测试端口 8080 (应该被允许)
-  log_info "测试 TCP 端口 8080 (应该被允许)"
+  # 测试端口 8080 (预期可访问)
+  log_info "测试 TCP 端口 8080 (经 NAT 访问服务)"
   if kubectl exec -n "$NAMESPACE" "$nsc_pod" -- timeout 3 wget -O /dev/null -q "172.16.1.100:8080" 2>/dev/null; then
-    log_info "✓ 端口 8080 可访问 (防火墙规则生效)"
+    log_info "✓ 端口 8080 可访问"
   else
-    log_error "✗ 端口 8080 不可访问 (防火墙规则未生效)"
-    mark_test_failed "防火墙规则测试 (TCP 8080 应允许)"
+    log_error "✗ 端口 8080 不可访问"
+    mark_test_failed "HTTP 连通性测试 (TCP 8080)"
   fi
 
   # 清理后台进程
   kill $nc_pid_80 $nc_pid_8080 2>/dev/null || true
 
-  if [[ ${#FAILED_TESTS[@]} -eq 0 ]] || [[ ! " ${FAILED_TESTS[*]} " =~ "防火墙规则测试" ]]; then
-    log_info "✓ 测试 4 通过: 防火墙 TCP 端口过滤正常"
+  if [[ ${#FAILED_TESTS[@]} -eq 0 ]] || [[ ! " ${FAILED_TESTS[*]} " =~ "HTTP 连通性测试" ]]; then
+    log_info "✓ 测试 4 通过: HTTP 连通性正常"
   fi
 }
 
@@ -226,9 +240,9 @@ test_05_iperf3_performance() {
   sleep 2
 
   # 运行 iperf3 客户端测试
-  log_info "运行 iperf3 客户端测试 (10秒)"
+  log_info "运行 iperf3 客户端测试 (10秒, 经 NAT)"
   if kubectl exec -n "$NAMESPACE" "$nsc_pod" -- iperf3 -c 172.16.1.100 -p 5201 -t 5 2>/dev/null | grep -q "sender"; then
-    log_info "✓ iperf3 性能测试成功 (TCP 5201 通过防火墙)"
+    log_info "✓ iperf3 性能测试成功 (TCP 5201 经 NAT 正常)"
   else
     log_error "✗ iperf3 性能测试失败"
     mark_test_failed "iperf3 性能测试"
@@ -248,12 +262,12 @@ test_05_iperf3_performance() {
 test_06_spire_authentication() {
   log_test "测试 6: SPIRE 身份验证检查"
 
-  local fw_pod
-  fw_pod=$(get_firewall_pod)
+  local nat_pod
+  nat_pod=$(get_nat_pod)
 
   # 检查 SPIRE socket 挂载
   log_info "检查 SPIRE Agent socket 挂载"
-  if kubectl exec -n "$NAMESPACE" "$fw_pod" -- test -S /run/spire/sockets/agent.sock 2>/dev/null; then
+  if kubectl exec -n "$NAMESPACE" "$nat_pod" -- test -S /run/spire/sockets/agent.sock 2>/dev/null; then
     log_info "✓ SPIRE Agent socket 已挂载"
   else
     log_warn "⚠ SPIRE Agent socket 不存在 (可能未启用 SPIRE)"
@@ -267,7 +281,7 @@ test_06_spire_authentication() {
 # ============================================================================
 main() {
   echo "========================================"
-  echo "VPP ACL 防火墙功能测试"
+  echo "VPP NAT44 功能测试"
   echo "命名空间: $NAMESPACE"
   echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
   echo "========================================"

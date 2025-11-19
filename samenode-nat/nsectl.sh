@@ -23,37 +23,75 @@ set -euo pipefail
 # ============================================================================
 
 # 默认 NF 类型 (请根据实际部署修改此值)
-# 常见值: firewall, nat, vpn, proxy
-DEFAULT_NF_TYPE="firewall"
+# 常见值: firewall, passthrough, bareforward, nat, vpn, proxy
+DEFAULT_NF_TYPE="nat"
 
 # 优先级: 环境变量 > 默认值
 NF_TYPE="${NF_TYPE:-$DEFAULT_NF_TYPE}"
 
 # ============================================================================
-# 基于 NF_TYPE 自动生成的派生变量
+# 基于 NF_TYPE 自动生成的派生变量 (服务类型信息结构)
 # ============================================================================
 NAMESPACE="ns-nse-composition"
 KUSTOMIZE_DIR="."
 WATCH_INTERVAL=2
 
-# APP_LABEL: nse-{NF_TYPE}-vpp (例如: nse-firewall-vpp, nse-nat-vpp)
-APP_LABEL="nse-${NF_TYPE}-vpp"
+APP_LABEL=""
+LOG_FILE_PREFIX=""
+TEST_SCRIPT_NAME=""
+POD_DISPLAY_NAME=""
 
-# LOG_FILE_PREFIX: 日志文件前缀 (例如: nse-firewall-vpp, nse-nat-vpp)
-LOG_FILE_PREFIX="nse-${NF_TYPE}-vpp"
+set_nf_profile() {
+  case "$NF_TYPE" in
+    firewall)
+      APP_LABEL="nse-firewall-vpp"
+      LOG_FILE_PREFIX="nse-firewall-vpp"
+      TEST_SCRIPT_NAME="firewall-test.sh"
+      POD_DISPLAY_NAME="防火墙 / Firewall"
+      ;;
+    passthrough)
+      # Passthrough 通过 VPP 防火墙镜像实现,但只验证通用连通性/带宽
+      APP_LABEL="nse-firewall-vpp"
+      LOG_FILE_PREFIX="nse-firewall-vpp"
+      TEST_SCRIPT_NAME="passthrough-test.sh"
+      POD_DISPLAY_NAME="Passthrough"
+      ;;
+    bareforward)
+      # Bareforward 只包含 kernel NSE
+      APP_LABEL="nse-kernel"
+      LOG_FILE_PREFIX="nse-kernel"
+      TEST_SCRIPT_NAME="bareforward-test.sh"
+      POD_DISPLAY_NAME="Bareforward"
+      ;;
+    nat)
+      APP_LABEL="nse-nat-vpp"
+      LOG_FILE_PREFIX="nse-nat-vpp"
+      TEST_SCRIPT_NAME="nat-test.sh"
+      POD_DISPLAY_NAME="NAT"
+      ;;
+    vpn)
+      APP_LABEL="nse-vpn-vpp"
+      LOG_FILE_PREFIX="nse-vpn-vpp"
+      TEST_SCRIPT_NAME="vpn-test.sh"
+      POD_DISPLAY_NAME="VPN"
+      ;;
+    proxy)
+      APP_LABEL="nse-proxy-vpp"
+      LOG_FILE_PREFIX="nse-proxy-vpp"
+      TEST_SCRIPT_NAME="proxy-test.sh"
+      POD_DISPLAY_NAME="代理 / Proxy"
+      ;;
+    *)
+      APP_LABEL="nse-${NF_TYPE}-vpp"
+      LOG_FILE_PREFIX="$APP_LABEL"
+      TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
+      POD_DISPLAY_NAME="$NF_TYPE"
+      ;;
+  esac
+}
 
-# TEST_SCRIPT_NAME: 测试脚本名称 (例如: firewall-test.sh, nat-test.sh)
-TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
-
-# POD_DISPLAY_NAME: Pod 显示名称 (例如: 防火墙, NAT)
-case "$NF_TYPE" in
-  gateway)   POD_DISPLAY_NAME="网关 / Gateway" ;;
-  firewall) POD_DISPLAY_NAME="防火墙 / Firewall" ;;
-  nat)      POD_DISPLAY_NAME="NAT" ;;
-  vpn)      POD_DISPLAY_NAME="VPN" ;;
-  proxy)    POD_DISPLAY_NAME="代理 / Proxy" ;;
-  *)        POD_DISPLAY_NAME="$NF_TYPE" ;;
-esac
+# 初始化一次
+set_nf_profile
 
 # Parse flags before subcommand
 ACTION="help"
@@ -69,21 +107,13 @@ while [[ ${#ARGS[@]} -gt 0 ]]; do
     -t|--nf-type)
       # 覆盖 NF_TYPE 并重新生成派生变量
       NF_TYPE="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2})
-      APP_LABEL="nse-${NF_TYPE}-vpp"
-      LOG_FILE_PREFIX="nse-${NF_TYPE}-vpp"
-      TEST_SCRIPT_NAME="${NF_TYPE}-test.sh"
-      case "$NF_TYPE" in
-        gateway)  POD_DISPLAY_NAME="网关 / Gateway" ;;
-        firewall) POD_DISPLAY_NAME="防火墙 / Firewall" ;;
-        nat)      POD_DISPLAY_NAME="NAT" ;;
-        vpn)      POD_DISPLAY_NAME="VPN" ;;
-        proxy)    POD_DISPLAY_NAME="代理 / Proxy" ;;
-        *)        POD_DISPLAY_NAME="$NF_TYPE" ;;
-      esac
+      set_nf_profile
       ;;
     -a|--app-label)
       # 保留此选项用于完全自定义 APP_LABEL (覆盖自动生成)
-      APP_LABEL="${ARGS[1]:-}"; ARGS=(${ARGS[@]:2}) ;;
+      APP_LABEL="${ARGS[1]:-}"
+      LOG_FILE_PREFIX="$APP_LABEL"
+      ARGS=(${ARGS[@]:2}) ;;
     -h|--help)
       ACTION="help"; ARGS=(${ARGS[@]:1}); break ;;
     apply|get|watch|logs|describe|delete|test|full|help)
@@ -247,14 +277,14 @@ cmd_full() {
   local cmdline_log="$SD/logs/cmdline.log"
   # 将所有输出捕获到 cmdline.log 并同时显示在屏幕上
   {
-    echo "=== 拉取最新代码 / GIT PULL (repo root) ==="
-    (
-      cd "$REPO_ROOT" && {
-        echo "+ cd $REPO_ROOT && git pull"
-        git pull || echo "警告: git pull 失败 (继续执行) / WARN: git pull failed (continuing)" >&2
-      }
-    )
-    echo
+    # echo "=== 拉取最新代码 / GIT PULL (repo root) ==="
+    # (
+    #   cd "$REPO_ROOT" && {
+    #     echo "+ cd $REPO_ROOT && git pull"
+    #     git pull || echo "警告: git pull 失败 (继续执行) / WARN: git pull failed (continuing)" >&2
+    #   }
+    # )
+    # echo
 
     echo "=== 部署应用 / APPLY ==="
     print_context
@@ -290,22 +320,22 @@ cmd_full() {
     cmd_describe || true
     echo
 
-    echo "=== 提交并推送日志 / GIT COMMIT & PUSH LOGS (repo root) ==="
-    (
-      cd "$REPO_ROOT" && {
-        echo "+ cd $REPO_ROOT && git add ."
-        git add .
-        if ! git diff --cached --quiet; then
-          echo "+ git commit -m '推送logs'"
-          git commit -m "推送logs" || echo "警告: git commit 失败 / WARN: git commit failed" >&2
-          echo "+ git push"
-          git push || echo "警告: git push 失败 / WARN: git push failed" >&2
-        else
-          echo "没有变更需要提交 / No changes to commit."
-        fi
-      }
-    )
-    echo
+    # echo "=== 提交并推送日志 / GIT COMMIT & PUSH LOGS (repo root) ==="
+    # (
+    #   cd "$REPO_ROOT" && {
+    #     echo "+ cd $REPO_ROOT && git add ."
+    #     git add .
+    #     if ! git diff --cached --quiet; then
+    #       echo "+ git commit -m '推送logs'"
+    #       git commit -m "推送logs" || echo "警告: git commit 失败 / WARN: git commit failed" >&2
+    #       echo "+ git push"
+    #       git push || echo "警告: git push 失败 / WARN: git push failed" >&2
+    #     else
+    #       echo "没有变更需要提交 / No changes to commit."
+    #     fi
+    #   }
+    # )
+    # echo
 
     echo "=== 完成 / DONE ==="
   } > >(tee "$cmdline_log") 2>&1
