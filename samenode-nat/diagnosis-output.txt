@@ -1,0 +1,148 @@
+========================================
+  L3 路由模式诊断（v1.0.6）
+========================================
+
+查找相关 Pod...
+NAT POD: [0;32mnse-nat-vpp-7cb7bb7f6c-r9hqn[0m
+NSC POD: [0;32m未找到[0m
+NSE POD: [0;32mnse-kernel-5d96b8d6d5-962xm[0m
+
+========================================
+1. VPP 接口状态
+========================================
+              Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count     
+local0                            0     down          0/0/0/0       drops                        402
+memif2327473391/0                 1      up          9000/0/0/0     tx-error                       1
+memif849655170/0                  2      up          9000/0/0/0     tx-error                       1
+
+========================================
+2. 接口地址配置（L3 vs L2 模式检查）
+========================================
+local0 (dn):
+memif2327473391/0 (up):
+  L3 172.16.1.101/32
+memif849655170/0 (up):
+  L3 172.16.1.100/32
+
+[0;32m✓ 检测到 L3 IP 地址配置[0m
+
+========================================
+3. IP 路由表（FIB）
+========================================
+ipv4-VRF:0, fib_index:0, flow hash:[src dst sport dport proto flowlabel ] epoch:0 flags:none locks:[default-route:1, nat-low:1, nat-hi:2, ]
+0.0.0.0/0
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:1 buckets:1 uRPF:0 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+0.0.0.0/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:2 buckets:1 uRPF:1 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+172.16.1.100/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:9 buckets:1 uRPF:11 to:[0:0]]
+    [0] [@12]: dpo-receive: 172.16.1.100 on memif849655170/0
+172.16.1.101/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:10 buckets:1 uRPF:7 to:[0:0]]
+    [0] [@12]: dpo-receive: 172.16.1.101 on memif2327473391/0
+192.168.1.100/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:11 buckets:1 uRPF:12 to:[0:0]]
+    [0] [@12]: dpo-receive: 192.168.1.100 on memif2327473391/0
+224.0.0.0/4
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:4 buckets:1 uRPF:3 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+240.0.0.0/4
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:3 buckets:1 uRPF:2 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+255.255.255.255/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:5 buckets:1 uRPF:4 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+
+[0;32m✓ 检测到 172.16.1.x 路由条目[0m
+
+========================================
+4. ARP 表
+========================================
+show ip: unknown input `arp'
+
+========================================
+5. NAT44 接口配置
+========================================
+NAT44 interfaces:
+ memif2327473391/0 out
+ memif849655170/0 in
+
+========================================
+6. NAT44 地址池
+========================================
+NAT44 pool addresses:
+192.168.1.100
+  tenant VRF: 0
+NAT44 twice-nat pool addresses:
+
+========================================
+7. NAT44 会话
+========================================
+NAT44 ED sessions:
+-------- thread 0 vpp_main: 0 sessions --------
+
+========================================
+8. L2 xconnect 配置（应该为空）
+========================================
+show l2: unknown input `xconnect'
+[0;32m✓ 无 L2 xconnect（符合 v1.0.6 预期）[0m
+
+========================================
+9. 接口数据包统计
+========================================
+local0                            0     down          0/0/0/0       drops                        402
+
+========================================
+10. VPP 数据包处理路径（graph nodes）
+========================================
+   Count                  Node                              Reason               Severity 
+       868             null-node                      blackholed packets           error  
+         1             arp-reply             IP4 source address not local to sub   error  
+       404             arp-reply             IP4 source address matches local in   error  
+         4             ip4-local             ip4 spoofed local-address packet dr   error  
+       741           ethernet-input                        no error                error  
+
+========================================
+11. VPP 错误统计
+========================================
+   Count                  Node                              Reason               Severity 
+       868             null-node                      blackholed packets           error  
+         1             arp-reply             IP4 source address not local to sub   error  
+       404             arp-reply             IP4 source address matches local in   error  
+         4             ip4-local             ip4 spoofed local-address packet dr   error  
+       741           ethernet-input                        no error                error  
+
+========================================
+诊断总结
+========================================
+
+[0;32m[正常1] L3 IP 地址已配置[0m
+[0;32m[正常2] 路由表已配置[0m
+[0;32m[正常3] L2 xconnect 已移除[0m
+
+[0;32m✓ 所有检查通过，但 ping 仍不通[0m
+
+可能的其他原因：
+  1. 接口顺序问题（nat → ipaddress → routes vs ipaddress → routes → nat）
+  2. memif 接口未正确配置
+  3. 需要手动添加 IP neighbor（ARP）
+  4. VPP 数据包处理路径问题
+
+建议：
+  1. 调整客户端链顺序：up → memif → ipaddress → routes → nat
+  2. 手动配置 ARP：vppctl set ip arp <interface> <ip> <mac>
+  3. 检查 VPP graph nodes 中的丢包原因
+
+========================================
+诊断完成
+========================================
